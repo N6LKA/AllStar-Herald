@@ -29,7 +29,9 @@ if (!herald_check_session()) {
     border-bottom: 1px solid #ccc;
     padding: 10px 20px;
   }
-  .herald-topbar img { height: 40px; display: block; }
+  .herald-topbar-brand { display: flex; align-items: center; gap: 12px; }
+  .herald-topbar-brand img.herald-icon { height: 40px; display: block; }
+  .herald-topbar-brand img.herald-banner { height: 40px; display: block; }
   .herald-topbar a {
     color: #2f5d65;
     text-decoration: none;
@@ -37,12 +39,15 @@ if (!herald_check_session()) {
     font-size: 0.9em;
   }
   .herald-topbar a:hover { text-decoration: underline; }
-  .herald-content { max-width: 1400px; margin: 0 auto; padding: 20px; }
+  .herald-content { max-width: 1800px; margin: 0 auto; padding: 20px; }
 </style>
 </head>
 <body>
   <div class="herald-topbar">
-    <img src="img/herald-title-banner.png" alt="AllStarLink Herald">
+    <div class="herald-topbar-brand">
+      <img class="herald-icon" src="img/herald-icon.png" alt="">
+      <img class="herald-banner" src="img/herald-title-banner.png" alt="AllStarLink Herald">
+    </div>
     <a href="logout.php">Log Out</a>
   </div>
   <div class="herald-content">
