@@ -6,7 +6,14 @@
 // execute, and some host pages (e.g. herald.html inside Allmon3's own
 // web root) inject the fragment that way.
 (function () {
-  const API = '/herald/api/';
+  // Allmon3's page sets window.HERALD_API_BASE to the unauthenticated
+  // api-open/ path before loading this script (see herald.html) - its own
+  // login can't be verified server-side by anything outside Allmon3 itself,
+  // so its calls go through the deliberately-open pass-through endpoints
+  // instead of the session-protected ones everyone else uses. Supermon and
+  // the standalone UI don't set this - they get real sessions, so they use
+  // the protected default.
+  const API = window.HERALD_API_BASE || '/herald/api/';
 
   // Auto-clears after 6 s so users don't have to refresh to dismiss notices.
   function showMsg(el, text, ok) {
@@ -1013,6 +1020,54 @@
     if (data.success) loadAll();
   });
 
+  // ── Login Settings (standalone UI's own login only) ──────────────────────────────────────
+  // change_credentials.php only exists in the session-protected api/ path -
+  // no api-open/ counterpart, since that would let anyone rewrite the
+  // standalone login with zero auth check. Allmon3 (which always uses
+  // api-open/, see HERALD_API_BASE above) can never pass that check, so
+  // this whole card is hidden there instead of showing a confusing 401.
+  async function loadAuthSettings() {
+    const card = document.getElementById('auth-current-username').closest('.card-row');
+    if (window.HERALD_API_BASE) {
+      // Running inside Allmon3 - this feature isn't reachable from here.
+      if (card) card.style.display = 'none';
+      return;
+    }
+    const res = await fetch(API + 'change_credentials.php');
+    const data = await res.json().catch(() => ({ success: false }));
+    if (!data.success) return;
+    document.getElementById('auth-current-username').textContent = data.username;
+    document.getElementById('auth-default-warning').style.display = data.is_default ? 'block' : 'none';
+  }
+
+  document.getElementById('btn-save-credentials').addEventListener('click', async () => {
+    const msgEl = document.getElementById('auth-msg');
+    const currentPassword = document.getElementById('auth-current-password').value;
+    const newUsername = document.getElementById('auth-new-username').value.trim();
+    const newPassword = document.getElementById('auth-new-password').value;
+    const confirmPassword = document.getElementById('auth-confirm-password').value;
+
+    if (!currentPassword) { showMsg(msgEl, 'Enter your current password to confirm this change', false); return; }
+    if (newPassword && newPassword !== confirmPassword) { showMsg(msgEl, 'New password and confirmation do not match', false); return; }
+
+    const data = await api('change_credentials.php', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_username: newUsername,
+        new_password: newPassword,
+      }),
+    });
+    showMsg(msgEl, data.message || (data.success ? 'Saved' : 'Failed'), data.success);
+    if (data.success) {
+      document.getElementById('auth-current-password').value = '';
+      document.getElementById('auth-new-username').value = '';
+      document.getElementById('auth-new-password').value = '';
+      document.getElementById('auth-confirm-password').value = '';
+      loadAuthSettings();
+    }
+  });
+
   // ── Settings ──────────────────────────────────────────────────────────────────────────────
   // Shared by both Save & Reload buttons - Node/Debug live on the Global
   // Settings tab, Min Interval/RF-Network/SkywarnPlus live on the Tail
@@ -1285,5 +1340,6 @@
     loadVoices();
     loadAll();
   });
+  loadAuthSettings();
   _cdPoller = setInterval(_pollCountdown, 10000);
 })();

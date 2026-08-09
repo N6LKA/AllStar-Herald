@@ -35,7 +35,7 @@ Back in medieval times, a herald was the person who rode into town to announce n
 - **Time & Weather Announcements** — built-in `saytime.pl`/`weather.sh` replacement with recordings or custom Piper-TTS templates; the same weather data can also feed Allmon3's panel and Supermon's own weather-conditions line, so every display agrees
 - **Node ID Generator** — generate a station ID recording for AllStarLink's own ID feature
 - **Piper neural TTS** — natural-sounding voices with adjustable speech speed (0.5x–2.0x), festival/espeak-ng fallback
-- **Web UI** — optional browser-based management for Allmon3 and Supermon, gated behind each app's own login
+- **Web UI** — browser-based management, available three ways: embedded in Allmon3 or Supermon (gated behind each app's own login), or standalone at `http://<host>/herald/` with its own built-in username/password login (default `admin`/`admin` — change it on first login) for anyone not running either
 - **One-click updates** — check for and install updates from the web UI, with automatic post-restart health verification
 - **Config backup/restore, playback history, missing-file health checks** — see the Wiki for details
 

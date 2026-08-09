@@ -13,6 +13,30 @@
 // unmodified — this gives real Supermon chrome (nav, login dialog) for free
 // and means login detection always matches whatever Supermon itself does.
 include("session.inc");
+require __DIR__ . '/../herald/herald-common.php';
+
+$herald_logged_in = isset($_SESSION['sm61loggedin']) && $_SESSION['sm61loggedin'] === true;
+if ($herald_logged_in) {
+    // Silently establish the same session web/api/*.php now requires (see
+    // herald_require_session()), now that Supermon's own login is confirmed
+    // real above. Must happen here, BEFORE header.inc (or anything else)
+    // sends any output — session_start() can't set a cookie once headers
+    // have gone out, which is exactly the bug this ordering avoids (caught
+    // by local testing before ever reaching a live retest: the original
+    // version of this file called this after header.inc and this page's
+    // own <h2> had already produced output, so the herald_session cookie
+    // silently never got set at all).
+    //
+    // session_write_close() first: session.inc already started Supermon's
+    // own "supermon61"-named session for this request, and PHP only allows
+    // one active session at a time - herald_start_session() starts its own
+    // distinctly-named session, which needs Supermon's closed out first.
+    // Nothing here changes what the user sees; this only affects whether
+    // their own subsequent API calls succeed.
+    session_write_close();
+    herald_establish_session();
+}
+
 include("header.inc");
 ?>
 
@@ -21,7 +45,7 @@ include("header.inc");
     AllStarLink Herald &mdash; Announcement Manager Suite
 </h2>
 
-<?php if (isset($_SESSION['sm61loggedin']) && $_SESSION['sm61loggedin'] === true): ?>
+<?php if ($herald_logged_in): ?>
     <?php include __DIR__ . '/../herald/herald-ui-fragment.php'; ?>
     <?php
     // Cache-bust with the file's own mtime so the browser only re-fetches

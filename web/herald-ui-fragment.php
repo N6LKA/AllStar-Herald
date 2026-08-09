@@ -1089,5 +1089,26 @@
       <div class="msg" id="backup-msg"></div>
     </div>
   </div>
+
+  <div class="card-row">
+    <div class="card">
+      <h3 style="margin-top:0;">Login Settings</h3>
+      <p class="muted">Only used by the standalone web UI's own login (Allmon3 and Supermon use their own logins - this doesn't affect those). Current username: <strong id="auth-current-username">—</strong></p>
+      <div id="auth-default-warning" class="msg err" style="display:none; margin-bottom:12px;">
+        You're still using the default admin/admin login. Change it below before exposing this UI beyond your own LAN.
+      </div>
+      <label>Current password</label>
+      <input type="password" id="auth-current-password" autocomplete="current-password" style="width:260px;">
+      <label style="margin-top:12px;">New username <span class="muted">(leave blank to keep it)</span></label>
+      <input type="text" id="auth-new-username" autocomplete="username" style="width:260px;">
+      <label style="margin-top:12px;">New password <span class="muted">(leave blank to keep it)</span></label>
+      <input type="password" id="auth-new-password" autocomplete="new-password" style="width:260px;">
+      <label style="margin-top:12px;">Confirm new password</label>
+      <input type="password" id="auth-confirm-password" autocomplete="new-password" style="width:260px;">
+      <br><br>
+      <button class="btn-primary" id="btn-save-credentials">Save Login Settings</button>
+      <div class="msg" id="auth-msg"></div>
+    </div>
+  </div>
 </div>
 </div>

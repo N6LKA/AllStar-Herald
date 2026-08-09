@@ -1,4 +1,4 @@
 <?php
 require __DIR__ . '/../herald-common.php';
-
-herald_respond_from_cli(herald_run_sudo(['toggle']));
+herald_require_session();
+require __DIR__ . '/_impl/toggle.php';
