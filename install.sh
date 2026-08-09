@@ -33,6 +33,45 @@ info()    { echo -e "${GREEN}[INFO]${NC}  $*"; }
 warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error()   { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
+# ── Platform detection ──────────────────────────────────────────────────────────
+# Herald only supports ASL3 today. Checked before the tarball download below -
+# no point fetching the whole repo just to refuse it. Same detection approach
+# as Larry's own SkywarnPlus installer (swp-install): a modern (>=20) Asterisk
+# version on a Debian-based system means ASL3 (which is built on a current
+# Asterisk release); an older Asterisk version on Debian means ASL1/2; Arch
+# Linux means HamVoIP. Written as a case statement so a future HamVoIP-support
+# effort has a clean branch point to fill in here, rather than a rewrite.
+detect_platform() {
+    if [[ -f /etc/debian_version ]]; then
+        local ast_ver
+        ast_ver="$(asterisk -V 2>/dev/null || true)"
+        if [[ "$ast_ver" =~ Asterisk\ ([0-9]+) ]] && (( ${BASH_REMATCH[1]} >= 20 )); then
+            PLATFORM="ASL3"
+        else
+            PLATFORM="ASL1/2"
+        fi
+    elif [[ -f /etc/arch-release ]]; then
+        PLATFORM="HamVoIP"
+    else
+        PLATFORM="unknown"
+    fi
+}
+
+detect_platform
+case "$PLATFORM" in
+    ASL3)
+        ;;
+    HamVoIP)
+        error "Herald doesn't support HamVoIP yet — support is planned for a future release. Detected: HamVoIP."
+        ;;
+    ASL1/2)
+        error "Herald requires ASL3 (built on a modern Asterisk version). Detected: ASL1/2, which isn't supported."
+        ;;
+    *)
+        error "Could not determine your AllStarLink platform (checked for /etc/debian_version and /etc/arch-release). Herald currently only supports ASL3."
+        ;;
+esac
+
 # Downloads the whole repo at the given ref as a single tarball (GitHub's
 # codeload service, not raw.githubusercontent.com) and extracts it once, up
 # front - fetch_repo_file() below then just copies out of that local copy.
