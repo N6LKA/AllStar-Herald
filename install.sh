@@ -556,9 +556,19 @@ if [[ -d /etc/allmon3 ]]; then
     # menu.ini — appended to the END of the file so it never disturbs existing
     # custom menu entries; idempotent (skips if a [Herald] section already
     # points at the current target). Self-heals an old-named target left
-    # over from a pre-rename install even when the section already exists.
-    [[ -f "$MENU_INI" ]] && sed -i 's#/allmon3/asl3-herald\.html#/allmon3/herald.html#' "$MENU_INI"
+    # over from a pre-rename install even when the section already exists -
+    # MENU_INI_CHANGED must be set here too in that case, not just when a
+    # fresh [Herald] section is added below, since Allmon3 caches menu.ini
+    # in memory at startup and needs restarting either way for the new
+    # target to actually take effect (a stale target left un-restarted
+    # points at a herald.html file install.sh's legacy-migration step above
+    # already deleted).
     MENU_INI_CHANGED=false
+    if [[ -f "$MENU_INI" ]] && grep -q '/allmon3/asl3-herald\.html' "$MENU_INI"; then
+        sed -i 's#/allmon3/asl3-herald\.html#/allmon3/herald.html#' "$MENU_INI"
+        MENU_INI_CHANGED=true
+        info "Updated stale Allmon3 menu.ini link target to the new herald.html path"
+    fi
     if [[ -f "$MENU_INI" ]] && grep -q "^\[Herald\]" "$MENU_INI"; then
         info "Allmon3 menu.ini already has a [Herald] entry — skipping"
     else
