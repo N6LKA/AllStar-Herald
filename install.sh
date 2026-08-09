@@ -834,8 +834,9 @@ fi
 if [[ -f "$SUPERMON_FOOTER" ]]; then
     echo "           Supermon — look for the \"AllStar Herald\" link at the bottom after logging in"
 fi
-echo "           Standalone — http://<this-host>/herald/  (login: admin / admin — change this on the"
-echo "           Global Settings tab under 'Login Settings' before exposing this beyond your LAN)"
+NODE_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+echo "           Standalone — http://${NODE_IP:-<this-host>}/herald/  (login: admin / admin — change"
+echo "           this on the Global Settings tab under 'Login Settings' before exposing this beyond your LAN)"
 echo ""
 if $TW_DETECTED; then
     warn "An existing Time-Weather-Announce install was detected on this system."
