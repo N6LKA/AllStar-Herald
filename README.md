@@ -92,6 +92,8 @@ Back in medieval times, a herald was the person who rode into town to announce n
 
 ## Installation
 
+> ⚠️ **On a version before 1.26.0?** The in-app "Update Herald" button won't get you past this one version boundary due to the `ASL3-Herald` → `AllStar-Herald` repo rename — run the command below manually once, over SSH. See [Updating Herald](https://github.com/N6LKA/AllStar-Herald/wiki/Updating-Herald#upgrading-from-before-1260) for why. After that one-time run, in-app updates work normally again.
+
 **Stable (recommended):** installs from `main` — the tested, working release.
 
 ```bash
