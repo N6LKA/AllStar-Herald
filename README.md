@@ -92,6 +92,8 @@ Back in medieval times, a herald was the person who rode into town to announce n
 
 ## Installation
 
+The installer checks for ASL3 automatically and refuses to proceed on anything else (ASL1/2, HamVoIP) — Herald doesn't support those yet.
+
 > ⚠️ **On a version before 1.26.0?** The in-app "Update Herald" button won't get you past this one version boundary due to the `ASL3-Herald` → `AllStar-Herald` repo rename — run the command below manually once, over SSH. Full checklist of everything that can need a one-time manual fix: **[Upgrading past 1.26.0 — read this if anything broke](https://github.com/N6LKA/AllStar-Herald/discussions/52)**.
 
 **Stable (recommended):** installs from `main` — the tested, working release.
