@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """
-asl3-herald - Enhanced Tail Message & Announcement Daemon for ASL3/app_rpt
-https://github.com/N6LKA/asl3-herald
+herald - Enhanced Tail Message & Announcement Daemon for ASL3/app_rpt
+https://github.com/N6LKA/AllStar-Herald
 
 Replaces and enhances the native app_rpt tail message function with reliable
 unkey detection, rotating messages, SkywarnPlus WX integration, and scheduled
@@ -44,10 +44,10 @@ _yaml_rt.width = 4096  # don't wrap long comment/text lines
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
-INSTALL_DIR  = "/etc/asterisk/scripts/asl3-herald"
-CONF_FILE    = os.path.join(INSTALL_DIR, "asl3-herald.conf")
-STATE_FILE   = os.path.join(INSTALL_DIR, "asl3-herald.state")
-DISABLE_FLAG = os.path.join(INSTALL_DIR, "asl3-herald-disabled")
+INSTALL_DIR  = "/etc/asterisk/scripts/herald"
+CONF_FILE    = os.path.join(INSTALL_DIR, "herald.conf")
+STATE_FILE   = os.path.join(INSTALL_DIR, "herald.state")
+DISABLE_FLAG = os.path.join(INSTALL_DIR, "herald-disabled")
 ANNOUNCE_DIR = os.path.join(INSTALL_DIR, "announcements")
 
 # Node ID: a single Piper-generated file, deliberately kept in its own
@@ -59,7 +59,7 @@ ANNOUNCE_DIR = os.path.join(INSTALL_DIR, "announcements")
 # ever controls its *content*, never when it plays.
 NODE_ID_DIR      = os.path.join(INSTALL_DIR, "node-id")
 NODE_ID_FILE     = os.path.join(NODE_ID_DIR, "node-id.wav")
-NODE_ID_TEST_FILE = "/run/asl3-herald/node-id-test.wav"
+NODE_ID_TEST_FILE = "/run/herald/node-id-test.wav"
 
 # Pre-recorded sound snippets (digits, greetings, condition words) shared with
 # Time-Weather-Announce and other ASL3 programs — installed by install.sh.
@@ -80,7 +80,7 @@ TW_COORD_CACHE  = os.path.join(INSTALL_DIR, "timeweather-coords.cache")
 # /run - so it doesn't have the namespace problem above. Created on demand
 # by build_timeweather_audio() since /run's own contents don't survive a
 # reboot either.
-TW_TEMP_OUTDIR  = "/run/asl3-herald/timeweather-tmp"
+TW_TEMP_OUTDIR  = "/run/herald/timeweather-tmp"
 DEFAULT_TW_CRON = "0 * * * *"
 DEFAULT_TW_WEATHER_CACHE_MIN = 10
 DEFAULT_TW_MODE = "recordings"
@@ -128,7 +128,7 @@ TW_TEMPLATE_TAGS = ("smart_greeting", "time", "conditions", "temperature", "feel
 # place callers read the result from. api.github.com is used instead of
 # raw.githubusercontent.com, which is CDN-cached and known to serve stale
 # content for extended periods even with cache-busting.
-HERALD_VERSION_CHECK_URL = "https://api.github.com/repos/N6LKA/asl3-herald/contents/version.txt?ref=main"
+HERALD_VERSION_CHECK_URL = "https://api.github.com/repos/N6LKA/AllStar-Herald/contents/version.txt?ref=main"
 UPDATE_CHECK_INTERVAL_SECONDS = 86400  # once a day
 
 # One-click self-update ("Update Herald" button, Global Settings) - runs the
@@ -139,15 +139,15 @@ UPDATE_CHECK_INTERVAL_SECONDS = 86400  # once a day
 # install command, not raw.githubusercontent.com (CDN staleness - see
 # HERALD_VERSION_CHECK_URL's comment above for the same reasoning).
 UPDATE_INSTALL_CMD = (
-    'curl -fsSL --retry 3 --retry-delay 5 "https://github.com/N6LKA/ASL3-Herald/archive/refs/heads/main.tar.gz" '
-    '| tar -xzO ASL3-Herald-main/install.sh | bash'
+    'curl -fsSL --retry 3 --retry-delay 5 "https://github.com/N6LKA/AllStar-Herald/archive/refs/heads/main.tar.gz" '
+    '| tar -xzO AllStar-Herald-main/install.sh | bash'
 )
 UPDATE_TIMEOUT_SECONDS = 600  # ceiling for the whole install.sh run
 UPDATE_RESTART_HEALTH_TIMEOUT = 30  # seconds to wait for the service to report active again
-# Lives in the config directory (never touched by install.sh's own file
-# fetches, which only write into /usr/local/bin/asl3-herald) so it survives
-# the update it's reporting on, including the moment the daemon itself
-# restarts.
+# Lives in the install directory but under a filename install.sh's own file
+# fetches never target (herald.py/version.txt/piper-voices-catalog.json only)
+# so it survives the update it's reporting on, including the moment the
+# daemon itself restarts.
 UPDATE_STATUS_FILE = os.path.join(INSTALL_DIR, "update-status.json")
 # A safety-net snapshot of the config, written right before every update
 # attempt - restorable with `herald import-config` if an update ever goes
@@ -348,7 +348,7 @@ class AmiConn:
 
 def load_ami_credentials():
     """
-    Read AMI host/port/user/secret from the system — never from asl3-herald.conf.
+    Read AMI host/port/user/secret from the system — never from herald.conf.
     Tries /etc/allmon3/allmon3.ini first (preferred: already configured if
     Allmon3 is installed and stays in sync automatically when Allmon3 changes).
     Falls back to /etc/asterisk/manager.conf.
@@ -804,7 +804,7 @@ def tw_http_get(url, timeout=10):
     """GET a URL and return the response body as text, or None on any failure."""
     try:
         req = urllib.request.Request(url, headers={
-            "User-Agent": "asl3-herald/{} (github.com/N6LKA/asl3-herald)".format(VERSION),
+            "User-Agent": "herald/{} (github.com/N6LKA/AllStar-Herald)".format(VERSION),
         })
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             if resp.status != 200:
@@ -844,7 +844,7 @@ def fetch_latest_version():
     try:
         req = urllib.request.Request(HERALD_VERSION_CHECK_URL, headers={
             "Accept": "application/vnd.github.v3.raw",
-            "User-Agent": "asl3-herald-update-check",
+            "User-Agent": "herald-update-check",
         })
         with urllib.request.urlopen(req, timeout=10) as resp:
             if resp.status != 200:
@@ -903,7 +903,7 @@ def update_check_tick(state, now):
     last = (state.get("update_check") or {}).get("last_checked") or 0
     if (now - last) < UPDATE_CHECK_INTERVAL_SECONDS:
         return
-    log_debug("Checking for asl3-herald updates...")
+    log_debug("Checking for herald updates...")
     perform_update_check(state)
 
 # ── Condition-word mapping (drives which pre-recorded audio snippet plays) ────
@@ -1351,7 +1351,7 @@ def fetch_weather_cached(state, provider, location, tempest_token, tempest_stati
         weather = cache["weather"]
     return weather
 
-DEFAULT_WEATHER_SNAPSHOT_PATH = "/etc/asterisk/scripts/asl3-herald/weather.json"
+DEFAULT_WEATHER_SNAPSHOT_PATH = "/etc/asterisk/scripts/herald/weather.json"
 
 def write_weather_snapshot(weather, label, path):
     """Writes a small current-conditions JSON snapshot for other local
@@ -1447,7 +1447,7 @@ def cleanup_old_timeweather_files(current_out_path, now):
     within the safety window). Matches both Recordings mode's .gsm output and
     Template mode's .wav output - TW_TEMP_OUTDIR is dedicated solely to these
     files either way."""
-    pattern = os.path.join(TW_TEMP_OUTDIR, "asl3-herald-timeweather-*.*")
+    pattern = os.path.join(TW_TEMP_OUTDIR, "herald-timeweather-*.*")
     try:
         candidates = glob.glob(pattern)
     except OSError:
@@ -1930,7 +1930,7 @@ def play_timeweather(tw_cfg, state, node, now, now_dt, mode="scheduled", warning
         # stable filename per entry; Time & Weather's content changes every
         # single occurrence, so it needs a fresh name every time instead.
         ext = "wav" if render_mode == "template" else "gsm"
-        out_path = os.path.join(TW_TEMP_OUTDIR, f"asl3-herald-timeweather-{int(now * 1000)}.{ext}")
+        out_path = os.path.join(TW_TEMP_OUTDIR, f"herald-timeweather-{int(now * 1000)}.{ext}")
 
         # Best-effort cleanup of every OLD occurrence's file (a full directory
         # sweep, not just "the one previous path"). A single-pointer tracker
@@ -2098,7 +2098,7 @@ def timeweather_template_tick(tw_cfg, state, node, now, now_dt):
             return
 
         target_occ = _tw_template_next_occ
-        out_path = os.path.join(TW_TEMP_OUTDIR, f"asl3-herald-timeweather-{int(target_occ.timestamp() * 1000)}.wav")
+        out_path = os.path.join(TW_TEMP_OUTDIR, f"herald-timeweather-{int(target_occ.timestamp() * 1000)}.wav")
         cleanup_old_timeweather_files(out_path, now)
 
         message = pick_template_message(tw_cfg, state)
@@ -2365,7 +2365,7 @@ def load_update_status():
 def save_update_status(status):
     with open(UPDATE_STATUS_FILE, "w") as f:
         json.dump(status, f, indent=2)
-    # World-writable/readable for the same reason asl3-herald.state is - a
+    # World-writable/readable for the same reason herald.state is - a
     # www-data-triggered `herald update` runs as root (via sudo), but the
     # read-only status-polling endpoint (`herald update-status`) intentionally
     # does NOT run as root, so it needs to be able to read this file itself.
@@ -2416,7 +2416,7 @@ def cmd_run_update(config, args):
     This process keeps running on its own old in-memory code even after
     install.sh overwrites this very file on disk - normal, safe Linux
     behavior (the running process holds the old file's inode open) - and
-    exits normally once done; only the separate `asl3-herald` systemd
+    exits normally once done; only the separate `herald` systemd
     service actually restarts onto the new code."""
     global VERSION
     pid = os.getpid()
@@ -2459,7 +2459,7 @@ def cmd_run_update(config, args):
         update_status(stage="restarting", message="Waiting for the service to come back up...")
         healthy = False
         for _ in range(UPDATE_RESTART_HEALTH_TIMEOUT):
-            check = subprocess.run(["systemctl", "is-active", "--quiet", "asl3-herald"])
+            check = subprocess.run(["systemctl", "is-active", "--quiet", "herald"])
             if check.returncode == 0:
                 healthy = True
                 break
@@ -2467,7 +2467,7 @@ def cmd_run_update(config, args):
 
         if not healthy:
             update_status(status="failed", stage="restarting",
-                          message="Service did not come back up after restart - check: sudo journalctl -u asl3-herald -n 50",
+                          message="Service did not come back up after restart - check: sudo journalctl -u herald -n 50",
                           finished_at=time.time(), log=combined_log)
             return
 
@@ -2562,7 +2562,7 @@ def cmd_install_voice(config, args):
         for filename, dest in pairs:
             url = f"{HF_VOICES_BASE}/{filename}"
             req = urllib.request.Request(url, headers={
-                "User-Agent": "Mozilla/5.0 (compatible; asl3-herald-installer)",
+                "User-Agent": "Mozilla/5.0 (compatible; herald-installer)",
             })
             with urllib.request.urlopen(req, timeout=60) as resp:
                 if resp.status != 200:
@@ -2979,7 +2979,7 @@ def cmd_import_config(args):
         print(json.dumps({"success": False, "message": f"Could not read import file: {e}"}))
         return
     if not isinstance(new_config, dict) or "Node" not in new_config:
-        print(json.dumps({"success": False, "message": "Invalid config: not a recognizable asl3-herald config"}))
+        print(json.dumps({"success": False, "message": "Invalid config: not a recognizable herald config"}))
         return
     save_config(new_config)
     print(json.dumps({"success": True, "message": "Config imported and saved"}))
@@ -3282,7 +3282,7 @@ def cmd_request_test_timeweather(message_id=None, at=None):
     print(json.dumps({"success": True, "request_id": request_id}))
 
 def build_arg_parser():
-    parser = argparse.ArgumentParser(prog="asl3-herald.py")
+    parser = argparse.ArgumentParser(prog="herald.py")
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("list-json", help="Print current config as JSON")
@@ -3552,7 +3552,7 @@ def _poll_ami(ami, node):
 def main():
     global DEBUG, _ami_up, _ami_rx_keyed, _ami_conn_keyed
 
-    log_info(f"asl3-herald v{VERSION} starting")
+    log_info(f"herald v{VERSION} starting")
 
     config = load_config()
     cfg    = extract_config(config)
@@ -3591,7 +3591,7 @@ def main():
 
     # ── AMI setup ──────────────────────────────────────────────────────────
     # Credentials are read from /etc/allmon3/allmon3.ini or
-    # /etc/asterisk/manager.conf — never stored in asl3-herald.conf.
+    # /etc/asterisk/manager.conf — never stored in herald.conf.
     ami_host, ami_port, ami_user, ami_secret = load_ami_credentials()
     ami = None
     if ami_user:

@@ -8,7 +8,7 @@ Only the latest release on `main` is supported. Please update to the latest vers
 
 Please **do not** open a public issue for a security vulnerability. Instead, use GitHub's private reporting:
 
-1. Go to the [Security tab](https://github.com/N6LKA/ASL3-Herald/security) of this repository
+1. Go to the [Security tab](https://github.com/N6LKA/AllStar-Herald/security) of this repository
 2. Click **Report a vulnerability**
 3. Fill in as much detail as you can (steps to reproduce, affected version, potential impact)
 

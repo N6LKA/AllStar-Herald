@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 #
-# asl3-herald — Announcement Settings page for Allmon3
+# herald — Announcement Settings page for Allmon3
 #
 # Installed directly into Allmon3's own web root (/usr/share/allmon3/) so it
 # loads Allmon3's real functions.js/index.js unmodified: same header/sidebar
@@ -135,7 +135,7 @@
 
         <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
             <h2 class="mt-3 d-flex align-items-center gap-2">
-                <img src="/asl3-herald/img/herald-icon.png" alt="" width="32" height="32">
+                <img src="/herald/img/herald-icon.png" alt="" width="32" height="32">
                 AllStarLink Herald — Announcement Manager Suite
             </h2>
             <div id="herald-gate">
@@ -175,7 +175,7 @@ window.addEventListener('pageshow', async function() {
             // over HTTP, which both the browser and any CDN in front of
             // this domain can cache - stale copies have shown up here
             // before after edits to the fragment's own CSS/markup.
-            const resp = await fetch("/asl3-herald/herald-ui-fragment.php?_=" + Date.now(), { cache: "no-store" });
+            const resp = await fetch("/herald/herald-ui-fragment.php?_=" + Date.now(), { cache: "no-store" });
             gate.innerHTML = await resp.text();
             const s = document.createElement("script");
             // Same cache-busting reasoning as the fragment fetch above - this
@@ -183,7 +183,7 @@ window.addEventListener('pageshow', async function() {
             // browser-cached (or CDN-cached) even after the fragment/markup
             // correctly updated, making JS-only fixes appear not to "take"
             // until a hard refresh.
-            s.src = "/asl3-herald/herald-ui.js?_=" + Date.now();
+            s.src = "/herald/herald-ui.js?_=" + Date.now();
             document.body.appendChild(s);
         } catch (e) {
             gate.innerHTML = "<p style='color:#dc3545;'>Could not load AllStarLink Herald. Check that the web UI is installed.</p>";

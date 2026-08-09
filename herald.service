@@ -1,17 +1,17 @@
 [Unit]
-Description=ASL3 Herald - Enhanced Tail Message & Announcement Daemon
-Documentation=https://github.com/N6LKA/asl3-herald
+Description=AllStar Herald - Enhanced Tail Message & Announcement Daemon
+Documentation=https://github.com/N6LKA/AllStar-Herald
 After=network.target asterisk.service
 Wants=asterisk.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/asl3-herald/asl3-herald.py
+ExecStart=/etc/asterisk/scripts/herald/herald.py
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=asl3-herald
+SyslogIdentifier=herald
 
 # Reduce unnecessary restarts during Asterisk maintenance
 StartLimitIntervalSec=60

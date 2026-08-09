@@ -51,7 +51,7 @@ body:
     id: logs
     attributes:
       label: Relevant logs (optional)
-      description: If applicable, paste output from `sudo journalctl -u asl3-herald -n 50`, or any errors from your browser's developer console.
+      description: If applicable, paste output from `sudo journalctl -u herald -n 50`, or any errors from your browser's developer console.
       render: shell
     validations:
       required: false

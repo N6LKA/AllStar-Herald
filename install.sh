@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# asl3-herald install script
-# Usage: curl -fsSL -H "Cache-Control: no-cache" https://raw.githubusercontent.com/N6LKA/asl3-herald/main/install.sh | sudo bash
+# herald install script
+# Usage: curl -fsSL -H "Cache-Control: no-cache" https://raw.githubusercontent.com/N6LKA/AllStar-Herald/main/install.sh | sudo bash
 #   (the "sudo bash <(curl ...)" process-substitution form fails with
 #    /dev/fd/63: No such file or directory on some systems — pipe instead.
 #    This bootstrap fetch of install.sh itself can occasionally be served
@@ -13,7 +13,7 @@
 #    bootstrap script.)
 #
 # To test unreleased changes from the develop branch instead of main:
-#   curl -fsSL -H "Cache-Control: no-cache" https://raw.githubusercontent.com/N6LKA/asl3-herald/develop/install.sh | sudo bash -s -- --branch develop
+#   curl -fsSL -H "Cache-Control: no-cache" https://raw.githubusercontent.com/N6LKA/AllStar-Herald/develop/install.sh | sudo bash -s -- --branch develop
 #   (pass --branch as a script argument, not an env var - env vars set before
 #    "sudo" on a piped command don't reliably survive the sudo call on every
 #    system, but args after "bash -s --" always do)
@@ -49,9 +49,9 @@ error()   { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 REPO_TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$REPO_TMP_DIR"' EXIT
 
-info "Downloading asl3-herald ($BRANCH) ..."
-if ! curl -fsSL "https://github.com/N6LKA/asl3-herald/archive/refs/heads/${BRANCH}.tar.gz" -o "$REPO_TMP_DIR/repo.tar.gz"; then
-    error "Could not download the asl3-herald repo archive for branch '$BRANCH'."
+info "Downloading herald ($BRANCH) ..."
+if ! curl -fsSL "https://github.com/N6LKA/AllStar-Herald/archive/refs/heads/${BRANCH}.tar.gz" -o "$REPO_TMP_DIR/repo.tar.gz"; then
+    error "Could not download the AllStar-Herald repo archive for branch '$BRANCH'."
 fi
 tar -xzf "$REPO_TMP_DIR/repo.tar.gz" -C "$REPO_TMP_DIR" --strip-components=1
 
@@ -60,29 +60,88 @@ fetch_repo_file() {
     cp "$REPO_TMP_DIR/$path" "$dest"
 }
 
-INSTALL_DIR="/usr/local/bin/asl3-herald"
-CONFIG_DIR="/etc/asterisk/scripts/asl3-herald"
+# ── Path layout ─────────────────────────────────────────────────────────────────
+# As of the AllStar-Herald rename, daemon code and config/state live together
+# in one directory (matching the layout of Larry's other AllStarLink tools,
+# e.g. lnkact-monitor) instead of the old two-directory split
+# (/usr/local/bin/asl3-herald for code, /etc/asterisk/scripts/asl3-herald for
+# config). CONFIG_DIR is kept as its own name below purely for readability at
+# call sites that are conceptually about config, even though it's the same
+# path as INSTALL_DIR.
+INSTALL_DIR="/etc/asterisk/scripts/herald"
+CONFIG_DIR="$INSTALL_DIR"
 ANNOUNCE_DIR="$CONFIG_DIR/announcements"
 NODE_ID_DIR="$CONFIG_DIR/node-id"
-SERVICE_FILE="/etc/systemd/system/asl3-herald.service"
+SERVICE_FILE="/etc/systemd/system/herald.service"
 HERALD_BIN="/usr/local/bin/herald"
 
 # Captured before anything is touched so we know how to handle service startup
 # at the end:
-#   WAS_ACTIVE=true  → already running; restart to pick up code changes
+#   WAS_ACTIVE=true  → already running (old or new service name); restart to
+#                      pick up code changes
 #   HAS_CONFIG=true  → existing configured install (reinstall after uninstall);
 #                      start automatically rather than showing "Next steps"
 #   both false       → genuinely fresh install; leave stopped, show Next steps
 WAS_ACTIVE=false
-systemctl is-active --quiet asl3-herald 2>/dev/null && WAS_ACTIVE=true
+{ systemctl is-active --quiet herald 2>/dev/null || systemctl is-active --quiet asl3-herald 2>/dev/null; } && WAS_ACTIVE=true
 
 HAS_CONFIG=false
-CONFIG_DIR_EARLY="/etc/asterisk/scripts/asl3-herald"
-if [[ -f "$CONFIG_DIR_EARLY/asl3-herald.conf" ]] && \
-   grep -qE '^Node:[[:space:]]+"[0-9]+"' "$CONFIG_DIR_EARLY/asl3-herald.conf" 2>/dev/null; then
+CONFIG_DIR_EARLY="/etc/asterisk/scripts/herald"
+OLD_CONFIG_DIR_EARLY="/etc/asterisk/scripts/asl3-herald"
+if [[ -f "$CONFIG_DIR_EARLY/herald.conf" ]] && \
+   grep -qE '^Node:[[:space:]]+"[0-9]+"' "$CONFIG_DIR_EARLY/herald.conf" 2>/dev/null; then
+    HAS_CONFIG=true
+elif [[ -f "$OLD_CONFIG_DIR_EARLY/asl3-herald.conf" ]] && \
+     grep -qE '^Node:[[:space:]]+"[0-9]+"' "$OLD_CONFIG_DIR_EARLY/asl3-herald.conf" 2>/dev/null; then
     HAS_CONFIG=true
 fi
 
+# ── Legacy asl3-herald → herald migration (one-time, idempotent) ────────────────
+# Pre-rename installs used /usr/local/bin/asl3-herald (daemon code) and
+# /etc/asterisk/scripts/asl3-herald (config/state) as two separate
+# directories, an asl3-herald.service unit, an asl3-herald-web sudoers rule,
+# and an asl3-herald.conf tmpfiles.d entry. Detected and migrated here, before
+# any fresh-install logic below runs, so a normal reinstall/upgrade on an
+# existing node just works with no manual steps. A brand-new install never
+# matches any of these conditions and falls straight through.
+OLD_INSTALL_DIR="/usr/local/bin/asl3-herald"
+OLD_CONFIG_DIR="/etc/asterisk/scripts/asl3-herald"
+OLD_SERVICE_FILE="/etc/systemd/system/asl3-herald.service"
+OLD_WEB_DIR="/var/www/html/asl3-herald"
+OLD_SUDOERS_WEB="/etc/sudoers.d/asl3-herald-web"
+
+LEGACY_DETECTED=false
+[[ -f "$OLD_SERVICE_FILE" || -d "$OLD_CONFIG_DIR" || -d "$OLD_INSTALL_DIR" || -d "$OLD_WEB_DIR" ]] && LEGACY_DETECTED=true
+
+if $LEGACY_DETECTED; then
+    info "Existing asl3-herald install detected — migrating to the new herald naming ..."
+
+    if systemctl is-active --quiet asl3-herald 2>/dev/null; then
+        systemctl stop asl3-herald
+    fi
+    systemctl disable asl3-herald 2>/dev/null || true
+    rm -f "$OLD_SERVICE_FILE" "$OLD_SUDOERS_WEB"
+
+    if [[ -d "$OLD_CONFIG_DIR" && ! -d "$CONFIG_DIR" ]]; then
+        info "Moving config/state: $OLD_CONFIG_DIR -> $CONFIG_DIR ..."
+        mkdir -p "$(dirname "$CONFIG_DIR")"
+        mv "$OLD_CONFIG_DIR" "$CONFIG_DIR"
+        [[ -f "$CONFIG_DIR/asl3-herald.conf" ]]     && mv "$CONFIG_DIR/asl3-herald.conf" "$CONFIG_DIR/herald.conf"
+        [[ -f "$CONFIG_DIR/asl3-herald.state" ]]    && mv "$CONFIG_DIR/asl3-herald.state" "$CONFIG_DIR/herald.state"
+        [[ -f "$CONFIG_DIR/asl3-herald-disabled" ]] && mv "$CONFIG_DIR/asl3-herald-disabled" "$CONFIG_DIR/herald-disabled"
+    fi
+
+    # No user data lives in either of these — daemon code and web UI code are
+    # both re-fetched fresh from the tarball into the new locations below.
+    [[ -d "$OLD_INSTALL_DIR" ]] && rm -rf "$OLD_INSTALL_DIR"
+    [[ -d "$OLD_WEB_DIR" ]]     && rm -rf "$OLD_WEB_DIR"
+
+    rm -f /etc/tmpfiles.d/asl3-herald.conf
+    [[ -f /usr/share/allmon3/asl3-herald.html ]]     && rm -f /usr/share/allmon3/asl3-herald.html
+    [[ -f /var/www/html/supermon/asl3-herald.php ]]  && rm -f /var/www/html/supermon/asl3-herald.php
+
+    info "Legacy migration complete — continuing with a normal install/upgrade at the new paths."
+fi
 
 # A standalone Time-Weather-Announce install runs its own cron job for the
 # same hourly time+weather announcement. We never touch it automatically —
@@ -100,8 +159,8 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 echo ""
-echo "  asl3-herald — Enhanced Tail Message & Announcement Daemon"
-echo "  https://github.com/N6LKA/asl3-herald"
+echo "  herald — Enhanced Tail Message & Announcement Daemon"
+echo "  https://github.com/N6LKA/AllStar-Herald"
 [[ "$BRANCH" != "main" ]] && warn "Installing from branch: $BRANCH (not main)"
 echo ""
 
@@ -224,14 +283,14 @@ PYEOF
         else
             # Direct curl fallback — may 403 on some server IPs
             curl -fsSL --retry 3 --retry-delay 5 \
-                -A "Mozilla/5.0 (compatible; asl3-herald-installer)" \
+                -A "Mozilla/5.0 (compatible; herald-installer)" \
                 "$HF_BASE/$model_path" -o "$PIPER_VOICE_DIR/$onnx_file" || {
                 warn "Failed to download voice $onnx_file — skipping (re-run installer to retry)"
                 rm -f "$PIPER_VOICE_DIR/$onnx_file"
                 return
             }
             curl -fsSL --retry 3 --retry-delay 5 \
-                -A "Mozilla/5.0 (compatible; asl3-herald-installer)" \
+                -A "Mozilla/5.0 (compatible; herald-installer)" \
                 "$HF_BASE/$json_path" -o "$PIPER_VOICE_DIR/$onnx_file.json" || {
                 warn "Failed to download voice config for $onnx_file — removing partial"
                 rm -f "$PIPER_VOICE_DIR/$onnx_file" "$PIPER_VOICE_DIR/$onnx_file.json"
@@ -264,10 +323,10 @@ fi
 info "Installing daemon to $INSTALL_DIR ..."
 mkdir -p "$INSTALL_DIR"
 
-fetch_repo_file "asl3-herald.py" "$INSTALL_DIR/asl3-herald.py"
+fetch_repo_file "herald.py"      "$INSTALL_DIR/herald.py"
 fetch_repo_file "version.txt"    "$INSTALL_DIR/version.txt"
 fetch_repo_file "piper-voices-catalog.json" "$INSTALL_DIR/piper-voices-catalog.json"
-chmod +x "$INSTALL_DIR/asl3-herald.py"
+chmod +x "$INSTALL_DIR/herald.py"
 
 # ── Sound files for Time & Weather Announcements ───────────────────────────────
 # Same pre-recorded digit/greeting/condition-word GSM snippets used by
@@ -313,18 +372,18 @@ mkdir -p "$CONFIG_DIR" "$ANNOUNCE_DIR" "$NODE_ID_DIR"
 # before Asterisk starts, and before any DTMF-triggered call could possibly
 # happen. Without this, the very first post-boot call being a DTMF trigger
 # (asterisk user, no root) would fail: only root can create new entries
-# directly under /run, so asterisk can't create /run/asl3-herald itself if
-# it doesn't already exist (asl3-herald.py's own on-demand mkdir is still
+# directly under /run, so asterisk can't create /run/herald itself if
+# it doesn't already exist (herald.py's own on-demand mkdir is still
 # there as a fallback for whichever caller runs first, but shouldn't
 # normally be needed once this is installed).
-fetch_repo_file "tmpfiles.d/asl3-herald.conf" "/etc/tmpfiles.d/asl3-herald.conf"
-systemd-tmpfiles --create /etc/tmpfiles.d/asl3-herald.conf
+fetch_repo_file "tmpfiles.d/herald.conf" "/etc/tmpfiles.d/herald.conf"
+systemd-tmpfiles --create /etc/tmpfiles.d/herald.conf
 
-if [[ -f "$CONFIG_DIR/asl3-herald.conf" ]]; then
-    warn "Config already exists — not overwriting: $CONFIG_DIR/asl3-herald.conf"
+if [[ -f "$CONFIG_DIR/herald.conf" ]]; then
+    warn "Config already exists — not overwriting: $CONFIG_DIR/herald.conf"
 else
     info "Installing example config ..."
-    fetch_repo_file "asl3-herald.conf.example" "$CONFIG_DIR/asl3-herald.conf"
+    fetch_repo_file "herald.conf.example" "$CONFIG_DIR/herald.conf"
 
     # Interactive prompts for a brand-new config only - never touches an
     # existing one. Reads from /dev/tty rather than plain stdin, since this
@@ -337,7 +396,7 @@ else
     fi
     if [[ -n "$NODE_NUM" ]]; then
         if [[ "$NODE_NUM" =~ ^[0-9]+$ ]]; then
-            sed -i "s/^Node: .*/Node: \"$NODE_NUM\"/" "$CONFIG_DIR/asl3-herald.conf"
+            sed -i "s/^Node: .*/Node: \"$NODE_NUM\"/" "$CONFIG_DIR/herald.conf"
             info "Node number set to $NODE_NUM."
         else
             warn "'$NODE_NUM' doesn't look like a node number (digits only) — leaving Node blank."
@@ -352,19 +411,19 @@ else
     fi
     if [[ -n "$MIN_INTERVAL" ]]; then
         if [[ "$MIN_INTERVAL" =~ ^[0-9]+$ ]]; then
-            sed -i "s/^  MinInterval: .*/  MinInterval: $MIN_INTERVAL/" "$CONFIG_DIR/asl3-herald.conf"
+            sed -i "s/^  MinInterval: .*/  MinInterval: $MIN_INTERVAL/" "$CONFIG_DIR/herald.conf"
             info "MinInterval set to ${MIN_INTERVAL}s."
         else
             warn "'$MIN_INTERVAL' isn't a number — leaving MinInterval at the default (300s = 5 min)."
         fi
     fi
 
-    # AMI credentials are NOT stored in asl3-herald.conf — the daemon reads them
+    # AMI credentials are NOT stored in herald.conf — the daemon reads them
     # directly from /etc/allmon3/allmon3.ini (Allmon3) or /etc/asterisk/manager.conf
     # (Supermon / other frontends) at startup and on every SIGHUP reload.
     # No action needed here.
 
-    warn "Review the rest of the config before starting: $CONFIG_DIR/asl3-herald.conf"
+    warn "Review the rest of the config before starting: $CONFIG_DIR/herald.conf"
 fi
 
 # Migrate anyone still on the pre-1.25.2 /tmp-based snapshot default — that
@@ -374,26 +433,37 @@ fi
 # if it still has the exact old default; never touches a value the user
 # deliberately customized to something else.
 OLD_SNAPSHOT_PATH="/tmp/asl3-herald/weather.json"
-NEW_SNAPSHOT_PATH="/etc/asterisk/scripts/asl3-herald/weather.json"
-if [[ -f "$CONFIG_DIR/asl3-herald.conf" ]] && \
-   grep -qF "SnapshotPath: $OLD_SNAPSHOT_PATH" "$CONFIG_DIR/asl3-herald.conf"; then
+NEW_SNAPSHOT_PATH="/etc/asterisk/scripts/herald/weather.json"
+if [[ -f "$CONFIG_DIR/herald.conf" ]] && \
+   grep -qF "SnapshotPath: $OLD_SNAPSHOT_PATH" "$CONFIG_DIR/herald.conf"; then
     info "Migrating weather SnapshotPath off /tmp (PrivateTmp compatibility) ..."
-    cp "$CONFIG_DIR/asl3-herald.conf" "$CONFIG_DIR/asl3-herald.conf.bak.$(date +%Y%m%d-%H%M%S)"
-    sed -i "s#SnapshotPath: $OLD_SNAPSHOT_PATH#SnapshotPath: $NEW_SNAPSHOT_PATH#" "$CONFIG_DIR/asl3-herald.conf"
-    info "  Old value backed up in asl3-herald.conf.bak.*  — restart/reload picks up the new path below."
+    cp "$CONFIG_DIR/herald.conf" "$CONFIG_DIR/herald.conf.bak.$(date +%Y%m%d-%H%M%S)"
+    sed -i "s#SnapshotPath: $OLD_SNAPSHOT_PATH#SnapshotPath: $NEW_SNAPSHOT_PATH#" "$CONFIG_DIR/herald.conf"
+    info "  Old value backed up in herald.conf.bak.*  — restart/reload picks up the new path below."
+fi
+# Also catch the pre-rename default (config already off /tmp, but still
+# pointing at the old asl3-herald directory name) - same backup-then-rewrite
+# pattern, only touches the file if it still has that exact old value.
+OLD_SNAPSHOT_PATH_ASL3="/etc/asterisk/scripts/asl3-herald/weather.json"
+if [[ -f "$CONFIG_DIR/herald.conf" ]] && \
+   grep -qF "SnapshotPath: $OLD_SNAPSHOT_PATH_ASL3" "$CONFIG_DIR/herald.conf"; then
+    info "Migrating weather SnapshotPath off the old asl3-herald directory name ..."
+    cp "$CONFIG_DIR/herald.conf" "$CONFIG_DIR/herald.conf.bak.$(date +%Y%m%d-%H%M%S)"
+    sed -i "s#SnapshotPath: $OLD_SNAPSHOT_PATH_ASL3#SnapshotPath: $NEW_SNAPSHOT_PATH#" "$CONFIG_DIR/herald.conf"
+    info "  Old value backed up in herald.conf.bak.*  — restart/reload picks up the new path below."
 fi
 
 # ── systemd service ────────────────────────────────────────────────────────────
 
 info "Installing systemd service ..."
-fetch_repo_file "asl3-herald.service" "$SERVICE_FILE"
+fetch_repo_file "herald.service" "$SERVICE_FILE"
 systemctl daemon-reload
-systemctl enable asl3-herald
+systemctl enable herald
 
 # ── Web UI ─────────────────────────────────────────────────────────────────────
 
-WEB_DIR="/var/www/html/asl3-herald"
-SUDOERS_WEB="/etc/sudoers.d/asl3-herald-web"
+WEB_DIR="/var/www/html/herald"
+SUDOERS_WEB="/etc/sudoers.d/herald-web"
 SUPERMON_FOOTER="/var/www/html/supermon/footer.inc"
 
 # Allmon3 is a standalone Python/aiohttp app — it does NOT run on or
@@ -447,7 +517,7 @@ info "Verifying PHP is actually executing for the web UI ..."
 HEALTH_FILE="$WEB_DIR/.health-check.php"
 echo '<?php echo "HERALD_PHP_OK"; ?>' > "$HEALTH_FILE"
 chown www-data:www-data "$HEALTH_FILE"
-HEALTH_RESPONSE="$(curl -fsS "http://127.0.0.1/asl3-herald/.health-check.php" 2>/dev/null || true)"
+HEALTH_RESPONSE="$(curl -fsS "http://127.0.0.1/herald/.health-check.php" 2>/dev/null || true)"
 rm -f "$HEALTH_FILE"
 if [[ "$HEALTH_RESPONSE" != "HERALD_PHP_OK" ]]; then
     warn "PHP does NOT appear to be executing on this web server (got: '${HEALTH_RESPONSE:0:80}')."
@@ -458,14 +528,14 @@ fi
 info "Writing sudoers rule for www-data (herald command only) ..."
 cat > "$SUDOERS_WEB" << EOF
 # $SUDOERS_WEB
-# managed by asl3-herald install.sh — do not edit manually
+# managed by herald install.sh — do not edit manually
 www-data ALL=(root) NOPASSWD: $HERALD_BIN
 EOF
 chmod 0440 "$SUDOERS_WEB"
 chown root:root "$SUDOERS_WEB"
 
 # Allmon3 integration — a dedicated page installed directly into Allmon3's
-# own web root (not /asl3-herald/), so it can load Allmon3's real
+# own web root (not /herald/), so it can load Allmon3's real
 # functions.js/index.js unmodified for chrome + login detection. A page
 # living outside Allmon3's own directory can't reliably read Allmon3's
 # session cookie server-side (its Path is scoped to Allmon3's own API
@@ -475,22 +545,25 @@ MENU_INI="/etc/allmon3/menu.ini"
 if [[ -d /etc/allmon3 ]]; then
     if [[ -d "$ALLMON3_WEB_ROOT" ]]; then
         info "Installing Allmon3 Announcement Settings page to $ALLMON3_WEB_ROOT ..."
-        fetch_repo_file "web/allmon3/asl3-herald.html" "$ALLMON3_WEB_ROOT/asl3-herald.html"
-        chown root:root "$ALLMON3_WEB_ROOT/asl3-herald.html" 2>/dev/null || true
-        chmod 644 "$ALLMON3_WEB_ROOT/asl3-herald.html"
+        fetch_repo_file "web/allmon3/herald.html" "$ALLMON3_WEB_ROOT/herald.html"
+        chown root:root "$ALLMON3_WEB_ROOT/herald.html" 2>/dev/null || true
+        chmod 644 "$ALLMON3_WEB_ROOT/herald.html"
     else
         warn "Allmon3 web root not found at $ALLMON3_WEB_ROOT — skipping Allmon3 page install"
         warn "(this is expected only on a non-standard Allmon3 install)"
     fi
 
     # menu.ini — appended to the END of the file so it never disturbs existing
-    # custom menu entries; idempotent (skips if a [Herald] section already exists).
+    # custom menu entries; idempotent (skips if a [Herald] section already
+    # points at the current target). Self-heals an old-named target left
+    # over from a pre-rename install even when the section already exists.
+    [[ -f "$MENU_INI" ]] && sed -i 's#/allmon3/asl3-herald\.html#/allmon3/herald.html#' "$MENU_INI"
     MENU_INI_CHANGED=false
     if [[ -f "$MENU_INI" ]] && grep -q "^\[Herald\]" "$MENU_INI"; then
         info "Allmon3 menu.ini already has a [Herald] entry — skipping"
     else
         MENU_INI_CHANGED=true
-        info "Adding AllStarLink Herald sidebar link to $MENU_INI ..."
+        info "Adding AllStar Herald sidebar link to $MENU_INI ..."
         if [[ -f "$MENU_INI" ]]; then
             cp "$MENU_INI" "$MENU_INI.bak.$(date +%Y%m%d-%H%M%S)"
         else
@@ -505,16 +578,23 @@ if [[ -d /etc/allmon3 ]]; then
         cat >> "$MENU_INI" << 'EOF'
 [Herald]
 type = single
-Announcement Settings = /allmon3/asl3-herald.html
+Announcement Settings = /allmon3/herald.html
 EOF
         info "Added to the bottom of $MENU_INI — move/relabel it there if you'd like it elsewhere"
     fi
 
     # custom.css — hides the sidebar link until logged into Allmon3. Cosmetic
-    # only; asl3-herald.html itself still gates its content on real login
-    # status regardless of whether the link is visible.
+    # only; herald.html itself still gates its content on real login
+    # status regardless of whether the link is visible. Self-heals an
+    # old-named selector left over from a pre-rename install.
     CUSTOM_CSS="/etc/allmon3/custom.css"
-    CSS_RULE='body.logged-out a[href*="asl3-herald"] { display: none !important; }'
+    CSS_RULE='body.logged-out a[href*="herald"] { display: none !important; }'
+    if [[ -f "$CUSTOM_CSS" ]]; then
+        sed -i \
+            -e 's#/\* asl3-herald: hide sidebar link until logged into Allmon3 \*/#/* herald: hide sidebar link until logged into Allmon3 */#' \
+            -e 's#a\[href\*="asl3-herald"\]#a[href*="herald"]#' \
+            "$CUSTOM_CSS"
+    fi
     if [[ -f "$CUSTOM_CSS" ]] && grep -qF "$CSS_RULE" "$CUSTOM_CSS"; then
         info "Allmon3 custom.css already hides the Herald link when logged out — skipping"
     else
@@ -529,13 +609,13 @@ EOF
             echo >> "$CUSTOM_CSS"
         fi
         cat >> "$CUSTOM_CSS" << EOF
-/* asl3-herald: hide sidebar link until logged into Allmon3 */
+/* herald: hide sidebar link until logged into Allmon3 */
 $CSS_RULE
 EOF
     fi
 
     # Allmon3 reads menu.ini into memory at startup, same reasoning as the
-    # asl3-herald daemon itself needing a restart (not just a config
+    # herald daemon itself needing a restart (not just a config
     # reload) to pick up a change made to a file on disk - only restart when
     # the section was actually just added, never when it already existed
     # (a plain reinstall shouldn't bounce Allmon3 for no reason).
@@ -546,7 +626,7 @@ EOF
 fi
 
 # Supermon integration — a dedicated page installed directly into Supermon's
-# own directory (not /asl3-herald/), so it can include Supermon's real
+# own directory (not /herald/), so it can include Supermon's real
 # session.inc/header.inc/footer.inc unmodified. Supermon's session cookie is
 # named "supermon61" (set by session.inc) — a page living outside Supermon's
 # own directory that calls plain session_start() reads a different cookie
@@ -555,21 +635,22 @@ fi
 SUPERMON_DIR="/var/www/html/supermon"
 if [[ -d "$SUPERMON_DIR" ]]; then
     info "Installing Supermon Announcement Settings page to $SUPERMON_DIR ..."
-    fetch_repo_file "web/supermon/asl3-herald.php" "$SUPERMON_DIR/asl3-herald.php"
-    chown www-data:www-data "$SUPERMON_DIR/asl3-herald.php" 2>/dev/null || true
-    chmod 644 "$SUPERMON_DIR/asl3-herald.php"
+    fetch_repo_file "web/supermon/herald.php" "$SUPERMON_DIR/herald.php"
+    chown www-data:www-data "$SUPERMON_DIR/herald.php" 2>/dev/null || true
+    chmod 644 "$SUPERMON_DIR/herald.php"
 fi
 
 # Supermon footer link — added inside Supermon's own login-conditional
 # block, so it's already hidden until logged in, natively.
-SUPERMON_FOOTER_LINK='<a href="/supermon/asl3-herald.php">AllStarLink Herald - Announcement Manager Suite</a><br><br>'
+SUPERMON_FOOTER_LINK='<a href="/supermon/herald.php">AllStar Herald - Announcement Manager Suite</a><br><br>'
 if [[ -f "$SUPERMON_FOOTER" ]]; then
     if grep -qF "$SUPERMON_FOOTER_LINK" "$SUPERMON_FOOTER"; then
         info "Supermon footer link already present and up to date — skipping"
-    elif grep -q "asl3-herald.php" "$SUPERMON_FOOTER"; then
-        # An older install added the link with older text (e.g. "ASL3 Herald")
-        # - rewrite that whole line in place rather than leaving stale text
-        # behind that nobody would think to go fix by hand.
+    elif grep -q "asl3-herald.php\|herald.php" "$SUPERMON_FOOTER"; then
+        # An older install added the link with older text/href (e.g. "ASL3
+        # Herald" pointing at asl3-herald.php) - rewrite that whole line in
+        # place rather than leaving stale text behind that nobody would
+        # think to go fix by hand.
         info "Updating Supermon footer link text ..."
         cp "$SUPERMON_FOOTER" "$SUPERMON_FOOTER.bak.$(date +%Y%m%d-%H%M%S)"
         SUPERMON_FOOTER_LINK="$SUPERMON_FOOTER_LINK" SF="$SUPERMON_FOOTER" python3 -c "
@@ -578,14 +659,14 @@ path = os.environ['SF']
 link = os.environ['SUPERMON_FOOTER_LINK']
 with open(path) as f:
     content = f.read()
-content = re.sub(r'<a href=\"/supermon/asl3-herald\.php\">.*?</a><br><br>', link, content)
+content = re.sub(r'<a href=\"/supermon/(asl3-)?herald\.php\">.*?</a><br><br>', link, content)
 with open(path, 'w') as f:
     f.write(content)
 "
         chown www-data:www-data "$SUPERMON_FOOTER" 2>/dev/null || true
         info "Supermon footer link text updated."
     else
-        info "Adding asl3-herald link to Supermon footer ..."
+        info "Adding herald link to Supermon footer ..."
         cp "$SUPERMON_FOOTER" "$SUPERMON_FOOTER.bak.$(date +%Y%m%d-%H%M%S)"
         SUPERMON_FOOTER_LINK="$SUPERMON_FOOTER_LINK" awk '
         /if \(\$_SESSION\['"'"'sm61loggedin'"'"'\] === true\) \{/ { print; inblock = 1; next }
@@ -613,7 +694,7 @@ fi
 SUPERMON_WEATHER_LINK="/usr/local/sbin/supermon/weather.sh"
 SUPERMON_WEATHER_TARGET="$CONFIG_DIR/supermon-weather.sh"
 if [[ -d "/usr/local/sbin/supermon" ]] && \
-   grep -qE '^\s*SnapshotEnable:\s*true' "$CONFIG_DIR/asl3-herald.conf" 2>/dev/null; then
+   grep -qE '^\s*SnapshotEnable:\s*true' "$CONFIG_DIR/herald.conf" 2>/dev/null; then
     fetch_repo_file "scripts/supermon-weather.sh" "$SUPERMON_WEATHER_TARGET"
     chmod 755 "$SUPERMON_WEATHER_TARGET"
     if [[ -e "$SUPERMON_WEATHER_LINK" && ! -L "$SUPERMON_WEATHER_LINK" ]] && \
@@ -632,18 +713,18 @@ fi
 # ── Start / restart the service ───────────────────────────────────────────────
 # Always start (or restart) — never leave the service stopped after an install.
 if $WAS_ACTIVE; then
-    info "asl3-herald was already running — restarting to load the updated code ..."
-    systemctl restart asl3-herald
+    info "herald was already running — restarting to load the updated code ..."
+    systemctl restart herald
 else
-    info "Starting asl3-herald ..."
-    systemctl start asl3-herald
+    info "Starting herald ..."
+    systemctl start herald
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────────
 
 VERSION=$(cat "$INSTALL_DIR/version.txt" 2>/dev/null || echo "unknown")
 echo ""
-echo -e "  ${GREEN}asl3-herald v${VERSION} installed successfully.${NC}"
+echo -e "  ${GREEN}herald v${VERSION} installed successfully.${NC}"
 echo ""
 if $WAS_ACTIVE; then
     echo "  Service restarted to pick up the updated code."
@@ -653,7 +734,7 @@ fi
 echo "  Check status:  herald status"
 echo ""
 echo "  Next steps:"
-echo "  1. Edit config:   nano $CONFIG_DIR/asl3-herald.conf"
+echo "  1. Edit config:   nano $CONFIG_DIR/herald.conf"
 echo "  2. Add a message: sudo herald add \"This is W1ABC, repeater ID.\" --name id"
 echo "  3. List voices:   herald voices"
 echo ""
@@ -666,7 +747,7 @@ if [[ -d /etc/allmon3 ]]; then
     echo "            if the link was just added)"
 fi
 if [[ -f "$SUPERMON_FOOTER" ]]; then
-    echo "           Supermon — look for the \"AllStarLink Herald\" link at the bottom after logging in"
+    echo "           Supermon — look for the \"AllStar Herald\" link at the bottom after logging in"
 fi
 echo ""
 if $TW_DETECTED; then

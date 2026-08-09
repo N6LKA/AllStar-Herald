@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# herald — management command for asl3-herald
+# herald — management command for the herald daemon
 
-INSTALL_DIR="/etc/asterisk/scripts/asl3-herald"
-CONF_FILE="$INSTALL_DIR/asl3-herald.conf"
-SERVICE="asl3-herald"
+INSTALL_DIR="/etc/asterisk/scripts/herald"
+CONF_FILE="$INSTALL_DIR/herald.conf"
+SERVICE="herald"
 ANNOUNCE_DIR="$INSTALL_DIR/announcements"
 # Tail Messages and Scheduled Announcements each get their own subdirectory
 # so a rotation entry and a scheduled entry can never collide on the same
@@ -12,8 +12,8 @@ ANNOUNCE_DIR="$INSTALL_DIR/announcements"
 # ANNOUNCE_DIR - see find_existing_wav() below, which checks both.
 ROTATION_DIR="$ANNOUNCE_DIR/tail-messages"
 SCHEDULED_DIR="$ANNOUNCE_DIR/scheduled"
-DISABLE_FLAG="$INSTALL_DIR/asl3-herald-disabled"
-DAEMON_PY="/usr/local/bin/asl3-herald/asl3-herald.py"
+DISABLE_FLAG="$INSTALL_DIR/herald-disabled"
+DAEMON_PY="$INSTALL_DIR/herald.py"
 PIPER_BIN="/opt/piper/bin/piper/piper"
 # Shared with SkywarnPlus-NG and ASL3's own asl3-tts package.
 PIPER_VOICE_DIR="/var/lib/piper-tts"
@@ -160,7 +160,7 @@ Time & Weather Announcements (time and/or current conditions, schedule- or DTMF-
   For an on-demand DTMF trigger (e.g. "press 57 for the time and weather"),
   add a function in rpt.conf that runs: /usr/local/bin/herald play-timeweather
   No sudo and no special permissions needed - unlike every other mutating
-  herald command, this one never touches asl3-herald.conf, so it works
+  herald command, this one never touches herald.conf, so it works
   directly as whatever user app_rpt's DTMF functions run as (asterisk).
 
   The web UI's own Test button uses request-timeweather-test instead of
@@ -224,11 +224,11 @@ get_node() {
 #
 # speed (5th arg, optional, default 1.0) is a user-facing multiplier - 1.5
 # means 1.5x normal speed, 0.5 means half speed - clamped to 0.5-2.0 here to
-# match asl3-herald.py's clamp_tts_speed(), since this runs independently of
+# match herald.py's clamp_tts_speed(), since this runs independently of
 # the Python-side clamp on whatever a caller happens to pass in. Each engine
 # gets its own native speed control where one exists:
 #   Piper: --length-scale, a duration multiplier - the inverse of speed, see
-#          speed_to_length_scale() in asl3-herald.py for the same conversion.
+#          speed_to_length_scale() in herald.py for the same conversion.
 #   espeak-ng: -s <words-per-minute>, scaled directly off its base 140 wpm.
 #   festival (text2wave): no simple CLI speed flag exists, so this one
 #          engine falls back to sox's pitch-preserving tempo effect instead.
@@ -351,7 +351,7 @@ cmd_enable() {
     fi
     systemctl start "$SERVICE" 2>/dev/null || true
     systemctl enable "$SERVICE" 2>/dev/null || true
-    echo "asl3-herald enabled and started."
+    echo "herald enabled and started."
 }
 
 cmd_disable() {
@@ -688,9 +688,9 @@ cmd_update_timeweather() {
 
 cmd_test_timeweather() {
     # Deliberately no need_root here, unlike every other mutating command -
-    # this one never touches asl3-herald.conf (the thing that actually needs
+    # this one never touches herald.conf (the thing that actually needs
     # root elsewhere). It only fetches weather, writes a temp audio file
-    # (world-writable directory, see asl3-herald.py), and logs playback
+    # (world-writable directory, see herald.py), and logs playback
     # history to the shared state file (also made world-writable by
     # save_state(), for the same reason). Manual preview only - never
     # touches scheduling state. NOT for DTMF - see cmd_play_timeweather.
@@ -758,7 +758,7 @@ cmd_request_test_timeweather() {
     # data. Instead, this just leaves a small request file for the already-
     # running daemon (a plain systemd service, never spawned by Apache) to
     # notice and act on itself. Needs root only to write that tiny file into
-    # asl3-herald's own config directory - not for anything namespace-related.
+    # herald's own config directory - not for anything namespace-related.
     need_root "$@"
     python3 "$DAEMON_PY" request-timeweather-test "$@"
 }

@@ -9,7 +9,7 @@ require __DIR__ . '/../herald-common.php';
 // write to /tmp (e.g. SkywarnPlus's shared weather file) from it. The
 // daemon is a plain systemd service, never spawned by Apache, so it isn't
 // affected - see cmd_request_test_timeweather in the herald script.
-define('TW_TEST_RESULT_FILE', '/etc/asterisk/scripts/asl3-herald/timeweather-test-result.json');
+define('TW_TEST_RESULT_FILE', '/etc/asterisk/scripts/herald/timeweather-test-result.json');
 
 // Optional message_id: the per-row Test button in the Custom Templates
 // table passes this to force that specific message instead of the daemon's
@@ -63,5 +63,5 @@ while (microtime(true) < $deadline) {
 
 herald_json_response([
     'success' => false,
-    'message' => 'Timed out waiting for the daemon to respond - check that asl3-herald is running, or check Playback History',
+    'message' => 'Timed out waiting for the daemon to respond - check that herald is running, or check Playback History',
 ], 504);
