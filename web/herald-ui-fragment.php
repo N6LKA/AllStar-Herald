@@ -1,11 +1,11 @@
 <?php
 // herald-ui-fragment.php
 //
-// Markup-only fragment for asl3-herald's shared UI (styles + HTML, no
+// Markup-only fragment for herald's shared UI (styles + HTML, no
 // <script>). Fetched client-side and injected via innerHTML by pages that
-// can't run PHP themselves (e.g. asl3-herald.html living inside Allmon3's
+// can't run PHP themselves (e.g. herald.html living inside Allmon3's
 // own static web root), or included server-side by pages that can (e.g.
-// asl3-herald.php living inside Supermon's own directory).
+// herald.php living inside Supermon's own directory).
 //
 // The behavior lives separately in herald-ui.js, loaded via a real
 // <script src> tag by whichever page includes this fragment — scripts
@@ -268,8 +268,8 @@
 <div class="tab-panel active" id="tab-about">
   <div class="card">
     <p style="text-align:center;">
-      <img src="/asl3-herald/img/herald-logo.png" height="220" alt="Herald logo" style="vertical-align:middle;">
-      <img src="/asl3-herald/img/herald-title-banner.png" height="220" alt="AllStarLink Herald - Announcement Manager Suite" style="vertical-align:middle;">
+      <img src="/herald/img/herald-logo.png" height="220" alt="Herald logo" style="vertical-align:middle;">
+      <img src="/herald/img/herald-title-banner.png" height="220" alt="AllStarLink Herald - Announcement Manager Suite" style="vertical-align:middle;">
     </p>
 
     <h3>Where Herald came from</h3>
@@ -303,10 +303,10 @@
 
     <hr style="margin:20px 0; border:none; border-top:1px solid #444;">
     <p style="text-align:center;">
-      <a class="btn-secondary" href="https://github.com/N6LKA/ASL3-Herald/wiki" target="_blank" rel="noopener noreferrer">Documentation</a>
-      <a class="btn-secondary" href="https://github.com/N6LKA/ASL3-Herald" target="_blank" rel="noopener noreferrer">GitHub Repo</a>
-      <a class="btn-secondary" href="https://github.com/N6LKA/ASL3-Herald/releases" target="_blank" rel="noopener noreferrer">Release Notes</a>
-      <a class="btn-secondary" href="https://github.com/N6LKA/ASL3-Herald/issues/new/choose" target="_blank" rel="noopener noreferrer">Report a Bug / Request a Feature</a>
+      <a class="btn-secondary" href="https://github.com/N6LKA/AllStar-Herald/wiki" target="_blank" rel="noopener noreferrer">Documentation</a>
+      <a class="btn-secondary" href="https://github.com/N6LKA/AllStar-Herald" target="_blank" rel="noopener noreferrer">GitHub Repo</a>
+      <a class="btn-secondary" href="https://github.com/N6LKA/AllStar-Herald/releases" target="_blank" rel="noopener noreferrer">Release Notes</a>
+      <a class="btn-secondary" href="https://github.com/N6LKA/AllStar-Herald/issues/new/choose" target="_blank" rel="noopener noreferrer">Report a Bug / Request a Feature</a>
     </p>
   </div>
 </div>
@@ -969,7 +969,7 @@
     <div class="banner-info">
       <strong>One-time setup, so AllStar knows to use this file:</strong>
       <br>1. Open your node's <code>rpt.conf</code> and add (or change) this line:
-      <br><code>idrecording = /etc/asterisk/scripts/asl3-herald/node-id/node-id</code>
+      <br><code>idrecording = /etc/asterisk/scripts/herald/node-id/node-id</code>
       <br>2. Apply the change by running this command once:
       <br><code>sudo asterisk -rx "module reload app_rpt.so"</code>
       <br>That's it - you only need to do this once. Any time you generate a new ID below, AllStar will automatically use the updated audio the very next time it IDs, with nothing further to do.
@@ -1028,10 +1028,10 @@
           <div class="msg" id="update-run-msg"></div>
         </div>
         <div class="daemon-links">
-          <a class="btn-secondary" href="https://github.com/N6LKA/ASL3-Herald/wiki" target="_blank" rel="noopener noreferrer">Documentation</a>
-          <a class="btn-secondary" href="https://github.com/N6LKA/ASL3-Herald" target="_blank" rel="noopener noreferrer">GitHub Repo</a>
-          <a class="btn-secondary" href="https://github.com/N6LKA/ASL3-Herald/releases" target="_blank" rel="noopener noreferrer">Release Notes</a>
-          <a class="btn-secondary" href="https://github.com/N6LKA/ASL3-Herald/issues/new/choose" target="_blank" rel="noopener noreferrer">Report a Bug / Request a Feature</a>
+          <a class="btn-secondary" href="https://github.com/N6LKA/AllStar-Herald/wiki" target="_blank" rel="noopener noreferrer">Documentation</a>
+          <a class="btn-secondary" href="https://github.com/N6LKA/AllStar-Herald" target="_blank" rel="noopener noreferrer">GitHub Repo</a>
+          <a class="btn-secondary" href="https://github.com/N6LKA/AllStar-Herald/releases" target="_blank" rel="noopener noreferrer">Release Notes</a>
+          <a class="btn-secondary" href="https://github.com/N6LKA/AllStar-Herald/issues/new/choose" target="_blank" rel="noopener noreferrer">Report a Bug / Request a Feature</a>
         </div>
       </div>
     </div>

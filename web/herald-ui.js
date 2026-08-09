@@ -1,12 +1,12 @@
 // herald-ui.js
 //
-// Behavior for asl3-herald's shared UI (herald-ui-fragment.php). Loaded via
+// Behavior for herald's shared UI (herald-ui-fragment.php). Loaded via
 // a real <script src> tag by whichever page includes the fragment — kept
 // separate from the markup because scripts inserted via innerHTML never
-// execute, and some host pages (e.g. asl3-herald.html inside Allmon3's own
+// execute, and some host pages (e.g. herald.html inside Allmon3's own
 // web root) inject the fragment that way.
 (function () {
-  const API = '/asl3-herald/api/';
+  const API = '/herald/api/';
 
   // Auto-clears after 6 s so users don't have to refresh to dismiss notices.
   function showMsg(el, text, ok) {
@@ -153,7 +153,7 @@
   // Template messages) ─────────────────────────────────────────────────────
   // 1.0x = normal. Converted to Piper's own --length-scale (the inverse)
   // server-side only at the moment of TTS generation - see
-  // speed_to_length_scale() in asl3-herald.py.
+  // speed_to_length_scale() in herald.py.
   function setSpeedSlider(sliderId, displayId, value) {
     const v = (parseFloat(value) || 1.0).toFixed(1);
     document.getElementById(sliderId).value = v;
@@ -436,7 +436,7 @@
     document.getElementById('tw-wunderground-apikey').value = (twWeather.Wunderground && twWeather.Wunderground.ApiKey) || '';
     document.getElementById('tw-wunderground-station').value = (twWeather.Wunderground && twWeather.Wunderground.StationID) || '';
     document.getElementById('tw-snapshot-enable').checked = !!twWeather.SnapshotEnable;
-    document.getElementById('tw-snapshot-path').value = twWeather.SnapshotPath || '/tmp/asl3-herald/weather.json';
+    document.getElementById('tw-snapshot-path').value = twWeather.SnapshotPath || '/etc/asterisk/scripts/herald/weather.json';
     document.getElementById('tw-snapshot-label').value = twWeather.SnapshotLabel || '';
     updateSnapshotFieldsVisibility();
     document.getElementById('tw-callsign').value = twTemplates.Callsign || '';

@@ -1,5 +1,5 @@
-# asl3-herald.conf — Enhanced Tail Message & Announcement Daemon
-# Copy to /etc/asterisk/scripts/asl3-herald/asl3-herald.conf and edit.
+# herald.conf — Enhanced Tail Message & Announcement Daemon
+# Copy to /etc/asterisk/scripts/herald/herald.conf and edit.
 
 # Your ASL3 node number (required — install.sh normally prompts for this and
 # fills it in automatically; if left blank, the daemon will refuse to start)
@@ -39,18 +39,18 @@ TailMessage:
   # (via `herald edit-rotation` or the web UI) without retyping the text;
   # file-uploaded entries just have File and can still be renamed.
   Rotation: []
-    # - File: /etc/asterisk/scripts/asl3-herald/announcements/tail1.wav
-    #   Text: "This station is running asl3-herald"
+    # - File: /etc/asterisk/scripts/herald/announcements/tail1.wav
+    #   Text: "This station is running herald"
     #   Voice: en_US-lessac-medium
     #   # Optional: TTS speech-speed multiplier, 0.5-2.0, default 1.0
     #   # (1.5 = 1.5x normal speed, 0.5 = half speed). Ignored on
     #   # file-uploaded entries. Only takes effect the next time this
     #   # entry's audio is (re)generated.
     #   Speed: 1.0
-    # - File: /etc/asterisk/scripts/asl3-herald/announcements/tail2.wav
+    # - File: /etc/asterisk/scripts/herald/announcements/tail2.wav
     #   Text: null
     #   Voice: null
-    # - File: /etc/asterisk/scripts/asl3-herald/announcements/tuesday-net.wav
+    # - File: /etc/asterisk/scripts/herald/announcements/tuesday-net.wav
     #   # Optional: only eligible on the days/time-window given below (omit
     #   # either field for "always eligible", the pre-existing behavior).
     #   Days: ["tuesday"]
@@ -118,14 +118,14 @@ TailMessage:
 Scheduled: []
   # - Name: "ARRL Audio News"
   #   Cron: "30 7 * * 6"          # Saturdays at 7:30 AM
-  #   File: /etc/asterisk/scripts/asl3-herald/announcements/arrl-news.wav
+  #   File: /etc/asterisk/scripts/herald/announcements/arrl-news.wav
   #   PlayMode: local
   #   Speed: 1.0
   #   Enabled: true
 
   # - Name: "Weekly Net Announcement"
   #   Cron: "45 19 * * 4"         # Thursdays at 7:45 PM
-  #   File: /etc/asterisk/scripts/asl3-herald/announcements/net-announcement.wav
+  #   File: /etc/asterisk/scripts/herald/announcements/net-announcement.wav
   #   PlayMode: global
   #   Text: "Weekly net announcement text follows"
   #   Voice: en_US-lessac-medium
@@ -133,7 +133,7 @@ Scheduled: []
 
   # - Name: "Second Saturday Breakfast Net"
   #   Cron: "0 8 8-14 * 6"        # 2nd Saturday (DOM 8-14, DOW 6) at 8:00 AM
-  #   File: /etc/asterisk/scripts/asl3-herald/announcements/breakfast-net.wav
+  #   File: /etc/asterisk/scripts/herald/announcements/breakfast-net.wav
   #   PlayMode: local
   #   Enabled: true
 
@@ -141,7 +141,7 @@ Scheduled: []
   #   Time: "08:00"
   #   Days: ["saturday"]
   #   Week: 2
-  #   File: /etc/asterisk/scripts/asl3-herald/announcements/legacy-example.wav
+  #   File: /etc/asterisk/scripts/herald/announcements/legacy-example.wav
   #   PlayMode: local
 
 # Time & Weather Announcements — a time and/or current-conditions announcement,
@@ -243,7 +243,7 @@ TimeWeather:
     # /var/tmp/ for the same reason, and update ASL3-SkywarnPlus-NG-Bridge's
     # Weather.JsonPath to match.
     SnapshotEnable: false
-    SnapshotPath: /etc/asterisk/scripts/asl3-herald/weather.json
+    SnapshotPath: /etc/asterisk/scripts/herald/weather.json
     SnapshotLabel: ""   # optional, shown on the Allmon3 panel e.g. "Home Station"
 
   # ── Template mode settings (ignored when Mode: recordings) ────────────────

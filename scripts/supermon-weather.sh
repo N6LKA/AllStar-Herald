@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Supermon weather-line wrapper, installed by asl3-herald's install.sh as the
+# Supermon weather-line wrapper, installed by herald's install.sh as the
 # target of the /usr/local/sbin/supermon/weather.sh symlink. Supermon's own
 # link.php calls that path directly:
 #
@@ -9,16 +9,16 @@
 # always print exactly one line. Rather than fetching weather independently
 # (a second, possibly-drifting source), this reads the same snapshot Herald
 # already writes for Allmon3 (TimeWeather.Weather.SnapshotEnable in
-# asl3-herald.conf) — so Supermon and Allmon3 always agree.
+# herald.conf) — so Supermon and Allmon3 always agree.
 #
-# Requires TimeWeather.Weather.SnapshotEnable: true in asl3-herald.conf.
+# Requires TimeWeather.Weather.SnapshotEnable: true in herald.conf.
 # Without it, Herald never writes the snapshot file this reads, and this
 # script prints "Weather data unavailable".
 
 set -euo pipefail
 
-CONF="/etc/asterisk/scripts/asl3-herald/asl3-herald.conf"
-DEFAULT_SNAPSHOT_PATH="/etc/asterisk/scripts/asl3-herald/weather.json"
+CONF="/etc/asterisk/scripts/herald/herald.conf"
+DEFAULT_SNAPSHOT_PATH="/etc/asterisk/scripts/herald/weather.json"
 MAX_AGE_MIN=30
 
 SNAPSHOT_PATH="$DEFAULT_SNAPSHOT_PATH"

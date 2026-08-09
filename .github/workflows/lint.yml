@@ -21,7 +21,7 @@ jobs:
           bash -n uninstall.sh
 
       - name: Python syntax check
-        run: python3 -m py_compile asl3-herald.py
+        run: python3 -m py_compile herald.py
 
       - name: PHP syntax check
         run: |

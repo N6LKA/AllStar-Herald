@@ -86,7 +86,7 @@ if ($wundergroundStation !== '' && !preg_match('/^[a-zA-Z0-9]{1,20}$/', $wunderg
 
 $weatherSnapshotEnable = ($input['weather_snapshot_enable'] ?? false) ? 'true' : 'false';
 
-$weatherSnapshotPath = trim($input['weather_snapshot_path'] ?? '/tmp/asl3-herald/weather.json');
+$weatherSnapshotPath = trim($input['weather_snapshot_path'] ?? '/etc/asterisk/scripts/herald/weather.json');
 if ($weatherSnapshotPath === '' || !preg_match('#^/[a-zA-Z0-9_./-]+$#', $weatherSnapshotPath)) {
     herald_json_response(['success' => false, 'message' => 'Invalid weather snapshot path'], 400);
 }

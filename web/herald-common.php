@@ -1,5 +1,5 @@
 <?php
-// herald-common.php — shared helpers for asl3-herald's web API endpoints.
+// herald-common.php — shared helpers for herald's web API endpoints.
 // Not directly web-accessible logic on its own; included by web/api/*.php.
 
 define('HERALD_BIN', '/usr/local/bin/herald');
@@ -44,7 +44,7 @@ function herald_run_sudo(array $args): array {
     return herald_exec_cmd(array_merge(['sudo', HERALD_BIN], $args));
 }
 
-// herald's mutating subcommands print one JSON line (from asl3-herald.py)
+// herald's mutating subcommands print one JSON line (from herald.py)
 // plus extra human-readable status lines (e.g. from cmd_reload). Scan from
 // the end for the last line that parses as JSON.
 function herald_extract_json(string $stdout): ?array {

@@ -24,7 +24,7 @@ if (array_key_exists('voice', $input)) {
     $args[] = trim($input['voice'] ?? '');
 }
 
-// Speed is clamped server-side too (asl3-herald.py's clamp_tts_speed()) -
+// Speed is clamped server-side too (herald.py's clamp_tts_speed()) -
 // this is just an early, friendlier rejection of garbage input.
 if (array_key_exists('speed', $input) && $input['speed'] !== '' && $input['speed'] !== null) {
     if (!is_numeric($input['speed'])) {
