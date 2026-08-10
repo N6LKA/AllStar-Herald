@@ -1016,6 +1016,16 @@
 
           <p class="muted" style="margin-top:16px; font-size:1.15em;">Version: <span id="set-herald-version">—</span></p>
           <div id="manual-update-warning" class="msg err" style="display:none; margin-bottom:8px;"></div>
+          <div style="margin-bottom:8px;">
+            <label for="update-branch-select" style="display:inline-block; margin-right:6px;">Update from:</label>
+            <select id="update-branch-select" style="width:auto;">
+              <option value="main" selected>Main (official release branch)</option>
+              <option value="develop">Develop (beta testing branch)</option>
+            </select>
+          </div>
+          <div id="develop-branch-warning" class="msg err" style="display:none; margin-bottom:8px;">
+            ⚠️ <code>develop</code> may contain incomplete, untested, or broken features at any given time. Only use this on a system where you can tolerate things breaking (or switch back to Main to recover). Don't use it on a repeater or node you depend on for daily use.
+          </div>
           <p>
             <button class="btn-secondary" id="btn-check-update">Check for Updates</button>
             <button class="btn-primary" id="btn-run-update">Update Herald</button>

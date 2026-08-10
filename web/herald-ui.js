@@ -122,6 +122,7 @@
   function renderManualUpdateWarning(updateCheck) {
     const warning = document.getElementById('manual-update-warning');
     const btn = document.getElementById('btn-run-update');
+    const branchSel = document.getElementById('update-branch-select');
     if (!warning || !btn || !updateCheck) return;
     if (updateCheck.manual_update_required) {
       warning.textContent = updateCheck.manual_update_message ||
@@ -129,10 +130,15 @@
       warning.style.display = 'block';
       btn.disabled = true;
       btn.title = 'Manual SSH install required - see the message above';
+      // Server-side refuses either branch equally (see cmd_update()'s own
+      // branch-agnostic check in herald.py) - disabled here too so
+      // switching branches doesn't look like a way around the warning.
+      if (branchSel) branchSel.disabled = true;
     } else {
       warning.style.display = 'none';
       btn.disabled = false;
       btn.title = '';
+      if (branchSel) branchSel.disabled = false;
     }
   }
 
@@ -929,10 +935,29 @@
     loadAll();
   });
 
+  // ── Branch selector (Check for Updates / Update Herald) ──────────────────────────────────
+  // Always starts on Main (option[selected] in the markup, re-asserted here
+  // in case a browser restores a stale form value on refresh) - deliberately
+  // never remembered across page loads, so leaving it on Develop and coming
+  // back later can't silently target the wrong branch next time.
+  function selectedUpdateBranch() {
+    const sel = document.getElementById('update-branch-select');
+    return sel && sel.value === 'develop' ? 'develop' : 'main';
+  }
+  const branchSelect = document.getElementById('update-branch-select');
+  if (branchSelect) {
+    branchSelect.value = 'main';
+    branchSelect.addEventListener('change', () => {
+      document.getElementById('develop-branch-warning').style.display =
+        branchSelect.value === 'develop' ? 'block' : 'none';
+    });
+  }
+
   document.getElementById('btn-check-update').addEventListener('click', async () => {
     const msgEl = document.getElementById('update-check-msg');
-    showMsg(msgEl, 'Checking...', true);
-    const data = await api('version_check.php');
+    const branch = selectedUpdateBranch();
+    showMsg(msgEl, 'Checking ' + branch + '...', true);
+    const data = await api('version_check.php?branch=' + encodeURIComponent(branch));
     if (!data.success) {
       showMsg(msgEl, data.message || 'Could not check for updates', false);
       return;
@@ -941,15 +966,15 @@
     // as list.php's update_check, so no waiting on the next 10 s poll.
     renderUpdateBadge(data); renderManualUpdateWarning(data);
     if (data.update_available) {
-      showMsg(msgEl, 'Update available: v' + data.latest_version + ' (currently running v' + data.current_version + '). Use the Update Herald button, or see the README to update manually.', false);
+      showMsg(msgEl, 'Update available on ' + branch + ': v' + data.latest_version + ' (currently running v' + data.current_version + '). Use the Update Herald button, or see the README to update manually.', false);
     } else if (data.ahead_of_main) {
-      showMsg(msgEl, 'Running v' + data.current_version + ', ahead of the latest release on main (v' + data.latest_version + ') - expected if installed from the develop branch for testing.', true);
+      showMsg(msgEl, 'Running v' + data.current_version + ', ahead of the latest on ' + branch + ' (v' + data.latest_version + ')' + (branch === 'main' ? ' - expected if installed from the develop branch for testing.' : '.'), true);
     } else {
-      showMsg(msgEl, 'Up to date (v' + data.current_version + ').', true);
+      showMsg(msgEl, 'Up to date with ' + branch + ' (v' + data.current_version + ').', true);
     }
   });
 
-  // ── One-click update (from main) ─────────────────────────────────────────────────────────
+  // ── One-click update ──────────────────────────────────────────────────────────────────────
   let updatePoller = null;
   // update_status.php reflects whatever the last update run left behind,
   // with no expiry - a page loaded long after a past update would otherwise
@@ -1010,16 +1035,23 @@
   }
 
   document.getElementById('btn-run-update').addEventListener('click', async () => {
-    if (!confirm('This will update Herald to the latest version on the main branch. The service will briefly restart during the update, pausing tail messages and announcements for a few seconds. Continue?')) {
+    const branch = selectedUpdateBranch();
+    const confirmMsg = branch === 'develop'
+      ? 'This will update Herald to the latest DEVELOP branch - untested, may be incomplete or broken. The service will briefly restart during the update, pausing tail messages and announcements for a few seconds. Continue?'
+      : 'This will update Herald to the latest version on the main branch. The service will briefly restart during the update, pausing tail messages and announcements for a few seconds. Continue?';
+    if (!confirm(confirmMsg)) {
       return;
     }
     const runMsgEl = document.getElementById('update-run-msg');
-    const data = await api('update.php', { method: 'POST' });
+    const data = await api('update.php', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ branch }),
+    });
     if (!data.success) {
       showMsg(runMsgEl, data.message || 'Could not start update', false);
       return;
     }
-    showMsg(runMsgEl, 'Update started...', true);
+    showMsg(runMsgEl, 'Update started (' + branch + ')...', true);
     pollUpdateStatus();
   });
 
