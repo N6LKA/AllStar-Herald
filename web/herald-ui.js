@@ -90,7 +90,7 @@
     if (newLastPlayed !== _cdLastPlayed) {
       startCountdown(data.tail_message.min_interval, newLastPlayed);
     }
-    renderUpdateBadge(data.update_check);
+    renderUpdateBadge(data.update_check); renderManualUpdateWarning(data.update_check);
   }
 
   // ── Update-available header badge ──────────────────────────────────────────
@@ -108,6 +108,31 @@
       badge.style.display = '';
     } else {
       badge.style.display = 'none';
+    }
+  }
+
+  // Separate from renderUpdateBadge - this is about whether the one-click
+  // button can work at all, not just whether a newer version exists. See
+  // HERALD_UPDATE_NOTICE_URL's comment in herald.py for why this exists:
+  // a rename once broke the button for every older install with no in-app
+  // warning at all. The button is disabled outright (not just warned about)
+  // since we already know clicking it does nothing - the daemon's own
+  // cmd_update() refuses the same way server-side too, so this is
+  // belt-and-suspenders against a stale cached page, not the only guard.
+  function renderManualUpdateWarning(updateCheck) {
+    const warning = document.getElementById('manual-update-warning');
+    const btn = document.getElementById('btn-run-update');
+    if (!warning || !btn || !updateCheck) return;
+    if (updateCheck.manual_update_required) {
+      warning.textContent = updateCheck.manual_update_message ||
+        'This update requires a manual install over SSH - the button below won\'t work for this version.';
+      warning.style.display = 'block';
+      btn.disabled = true;
+      btn.title = 'Manual SSH install required - see the message above';
+    } else {
+      warning.style.display = 'none';
+      btn.disabled = false;
+      btn.title = '';
     }
   }
 
@@ -317,7 +342,7 @@
     hsSwp.style.color = swpEnabled ? '#27ae60' : '#e74c3c';
     hsSwp.style.fontWeight = 'bold';
     startCountdown(data.tail_message.min_interval, data.tail_message.last_tail_played || 0);
-    renderUpdateBadge(data.update_check);
+    renderUpdateBadge(data.update_check); renderManualUpdateWarning(data.update_check);
 
     const heraldEnabled = !!data.herald_enabled;
     const heraldStatusText = heraldEnabled ? 'Enabled' : 'Disabled';
@@ -914,7 +939,7 @@
     }
     // Reflect the result in the header badge immediately - same field shape
     // as list.php's update_check, so no waiting on the next 10 s poll.
-    renderUpdateBadge(data);
+    renderUpdateBadge(data); renderManualUpdateWarning(data);
     if (data.update_available) {
       showMsg(msgEl, 'Update available: v' + data.latest_version + ' (currently running v' + data.current_version + '). Use the Update Herald button, or see the README to update manually.', false);
     } else if (data.ahead_of_main) {

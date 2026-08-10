@@ -131,6 +131,24 @@ TW_TEMPLATE_TAGS = ("smart_greeting", "time", "conditions", "temperature", "feel
 HERALD_VERSION_CHECK_URL = "https://api.github.com/repos/N6LKA/AllStar-Herald/contents/version.txt?ref=main"
 UPDATE_CHECK_INTERVAL_SECONDS = 86400  # once a day
 
+# update-notice.json - a small, separately-fetched repo file that lets a
+# future release warn installs *older* than some version that the one-click
+# Update button won't work for them and a manual SSH install is required.
+# Exists because of a real incident: the 1.26.0 rename broke the Update
+# button for every pre-1.26.0 install with no in-app warning at all - anyone
+# who didn't happen to see the GitHub Discussion about it just clicked
+# Update and got silent nothing. This can only protect installs already
+# running a version new enough to have this check (never anyone on code
+# older than that, which is what the GitHub Discussion covers for the
+# incident that already happened) - but from here on, a future breaking
+# change to the update mechanism itself gets a real in-app warning instead
+# of relying on people finding a forum post. Fetched via the same
+# api.github.com Contents API as version.txt, not raw.githubusercontent.com
+# (same CDN-staleness reasoning as HERALD_VERSION_CHECK_URL above). A
+# missing/empty manual_update_required_below means no notice is active -
+# the normal, expected case for almost every release.
+HERALD_UPDATE_NOTICE_URL = "https://api.github.com/repos/N6LKA/AllStar-Herald/contents/update-notice.json?ref=main"
+
 # One-click self-update ("Update Herald" button, Global Settings) - runs the
 # same install.sh a user would otherwise fetch and run by hand over SSH, but
 # triggered from the web UI and always pinned to main (never develop - see
@@ -854,6 +872,47 @@ def fetch_latest_version():
         log_debug(f"Update check: could not reach GitHub: {e}")
         return None
 
+DEFAULT_MANUAL_UPDATE_MESSAGE = (
+    "Could not verify update compatibility with GitHub - if the Update button doesn't work, "
+    "a manual install over SSH may be required: "
+    "curl -fsSL -H \"Cache-Control: no-cache\" "
+    "https://raw.githubusercontent.com/N6LKA/AllStar-Herald/main/install.sh | sudo bash"
+)
+
+def fetch_update_notice():
+    """GET update-notice.json from GitHub. Returns (ok, min_version, message).
+
+    Deliberately fails CLOSED, not open, unlike fetch_latest_version() above
+    it: this file is expected to always exist and always be fetchable from
+    this point forward, so if it genuinely can't be reached or parsed, that
+    itself is the warning sign, not something to shrug off. This is the
+    direct fix for the same blind spot that caused the 1.26.0 rename to
+    silently break the update button with no in-app warning - if the repo
+    ever moves again in a way this exact URL doesn't survive, the daemon
+    can no longer tell whether a manual update is needed... which is
+    precisely when it should assume the worst and say so, not stay quiet.
+    ok=True only when the file was actually fetched and parsed - callers use
+    that to distinguish "confirmed no notice active" from "couldn't check.\""""
+    try:
+        req = urllib.request.Request(HERALD_UPDATE_NOTICE_URL, headers={
+            "Accept": "application/vnd.github.v3.raw",
+            "User-Agent": "herald-update-check",
+        })
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            if resp.status != 200:
+                log_debug(f"Update check: update-notice.json returned HTTP {resp.status}")
+                return False, None, None
+            data = json.loads(resp.read().decode("utf-8", errors="replace"))
+        return True, data.get("manual_update_required_below"), data.get("message")
+    except Exception as e:
+        log_debug(f"Update check: could not fetch/parse update-notice.json: {e}")
+        return False, None, None
+
+def _manual_update_required(notice_ok, min_version):
+    if not notice_ok:
+        return True  # couldn't verify - assume caution is warranted, see fetch_update_notice()
+    return bool(min_version) and _version_tuple(VERSION) < _version_tuple(min_version)
+
 def perform_update_check(state):
     """Checks GitHub for the latest release and records the result in state.
     Shared by both update_check_tick() (the nightly automatic check) and
@@ -863,6 +922,7 @@ def perform_update_check(state):
     Settings tab read the result from, so a manual click updates the header
     immediately instead of waiting for the next automatic check."""
     latest = fetch_latest_version()
+    notice_ok, min_manual, manual_message = fetch_update_notice()
     result = {
         "last_checked": time.time(),
         "current_version": VERSION,
@@ -870,6 +930,10 @@ def perform_update_check(state):
         "update_available": False,
         "ahead_of_main": False,
         "error": None if latest else "Could not reach GitHub to check for updates",
+        "manual_update_notice_ok": notice_ok,
+        "manual_update_required_below": min_manual,
+        "manual_update_message": manual_message if notice_ok else DEFAULT_MANUAL_UPDATE_MESSAGE,
+        "manual_update_required": _manual_update_required(notice_ok, min_manual),
     }
     if latest and VERSION != "unknown":
         cur_t, latest_t = _version_tuple(VERSION), _version_tuple(latest)
@@ -880,19 +944,29 @@ def perform_update_check(state):
     return result
 
 def live_update_check(state):
-    """Returns state["update_check"] with update_available/ahead_of_main
-    re-derived against the live, currently-running VERSION rather than
-    whatever current_version was cached at the last check. That cache goes
-    stale the instant the daemon is updated by any means - the one-click
-    button, a manual install.sh re-run, anything - not just the button's own
-    flow. Re-deriving here is free (no GitHub call): latest_version doesn't
-    change until a new release actually ships, only our own version does."""
+    """Returns state["update_check"] with update_available/ahead_of_main/
+    manual_update_required re-derived against the live, currently-running
+    VERSION rather than whatever current_version was cached at the last
+    check. That cache goes stale the instant the daemon is updated by any
+    means - the one-click button, a manual install.sh re-run, anything - not
+    just the button's own flow. Re-deriving here is free (no GitHub call):
+    latest_version/manual_update_required_below don't change until a new
+    release actually ships or the notice file is edited, only our own
+    version does."""
     check = dict(state.get("update_check") or {})
     latest = check.get("latest_version")
     if latest and VERSION != "unknown":
         cur_t, latest_t = _version_tuple(VERSION), _version_tuple(latest)
         check["update_available"] = cur_t < latest_t
         check["ahead_of_main"] = cur_t > latest_t
+    # Only re-derive if a real check has actually run at least once - an
+    # empty/never-checked state (e.g. right after a fresh install, before
+    # the first nightly check or manual click) must NOT be treated as a
+    # failed check, or every brand-new install would show the fail-closed
+    # warning before ever having tried GitHub even once.
+    if "manual_update_notice_ok" in check:
+        check["manual_update_required"] = _manual_update_required(
+            check["manual_update_notice_ok"], check.get("manual_update_required_below"))
     check["current_version"] = VERSION
     return check
 
@@ -2326,6 +2400,8 @@ def cmd_check_update(config, args):
         "latest_version": result["latest_version"],
         "update_available": result["update_available"],
         "ahead_of_main": result["ahead_of_main"],
+        "manual_update_required": result["manual_update_required"],
+        "manual_update_message": result["manual_update_message"],
     }))
 
 # ── One-click self-update ──────────────────────────────────────────────────
@@ -2395,6 +2471,19 @@ def cmd_update(config, args):
         print(json.dumps({
             "success": False,
             "message": f"An update is already in progress (started {when}) - please wait for it to finish.",
+        }))
+        return
+
+    # Server-side backstop matching the UI's disabled button - see
+    # HERALD_UPDATE_NOTICE_URL's comment. Checked here too (not just in the
+    # web UI) so a stale cached page, an old browser tab, or a direct API
+    # call can't trigger an update we already know will silently fail.
+    check = live_update_check(load_state())
+    if check.get("manual_update_required"):
+        print(json.dumps({
+            "success": False,
+            "message": check.get("manual_update_message") or
+                       "This update requires a manual install over SSH - the one-click Update button won't work for this version.",
         }))
         return
 
