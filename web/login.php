@@ -72,7 +72,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     max-width: 340px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   }
-  .login-card img { display: block; margin: 0 auto 20px; max-width: 260px; }
+  .login-brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 20px; }
+  .login-brand img.herald-icon { height: 36px; display: block; }
+  .login-brand img.herald-banner { height: 36px; display: block; }
   .login-card label { display: block; margin-top: 14px; font-weight: bold; font-size: 0.9em; }
   .login-card input[type=text], .login-card input[type=password] {
     width: 100%;
@@ -100,7 +102,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body>
   <div class="login-card">
-    <img src="img/herald-title-banner.png" alt="AllStarLink Herald">
+    <div class="login-brand">
+      <img class="herald-icon" src="img/herald-icon.png" alt="">
+      <img class="herald-banner" src="img/herald-title-banner.png" alt="AllStarLink Herald">
+    </div>
     <form method="post">
       <label for="username">Username</label>
       <input type="text" id="username" name="username" autocomplete="username" required autofocus>
