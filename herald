@@ -428,7 +428,7 @@ cmd_catalog_voices() {
 
 cmd_check_update() {
     need_root "$@"
-    python3 "$DAEMON_PY" check-update
+    python3 "$DAEMON_PY" check-update "$@"
 }
 
 cmd_update_status() {
@@ -439,7 +439,7 @@ cmd_update_status() {
 
 cmd_update() {
     need_root "$@"
-    python3 "$DAEMON_PY" update
+    python3 "$DAEMON_PY" update "$@"
 }
 
 cmd_install_voice() {

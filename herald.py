@@ -128,7 +128,34 @@ TW_TEMPLATE_TAGS = ("smart_greeting", "time", "conditions", "temperature", "feel
 # place callers read the result from. api.github.com is used instead of
 # raw.githubusercontent.com, which is CDN-cached and known to serve stale
 # content for extended periods even with cache-busting.
-HERALD_VERSION_CHECK_URL = "https://api.github.com/repos/N6LKA/AllStar-Herald/contents/version.txt?ref=main"
+# Branch selector (Global Settings, next to Update Herald) - lets the manual
+# "Check for Updates" button and the Update Herald button itself target
+# develop instead of main, e.g. to test an unreleased fix ahead of its own
+# release. Always defaults to main on every page load (never remembered
+# server-side) - the daily automatic check has no UI to read a selection
+# from anyway, so it's hardcoded to main unconditionally, see
+# update_check_tick() below. ALLOWED_UPDATE_BRANCHES is a strict whitelist,
+# not just documentation: both of these values get interpolated into a URL
+# and, for update_install_cmd(), an actual shell command string - anything
+# reaching those call sites that isn't exactly one of these two literals
+# must be rejected before it gets anywhere near either, not sanitized or
+# escaped, to close off any shell/URL injection surface entirely.
+ALLOWED_UPDATE_BRANCHES = ("main", "develop")
+
+def validate_update_branch(branch):
+    """Raises ValueError for anything other than an exact match in
+    ALLOWED_UPDATE_BRANCHES. Call at every entry point that accepts a branch
+    from outside this process (CLI args, web requests) - see the comment
+    above ALLOWED_UPDATE_BRANCHES for why this has to be a hard reject, not
+    a best-effort clean."""
+    if branch not in ALLOWED_UPDATE_BRANCHES:
+        raise ValueError(f"Invalid branch {branch!r} - must be one of {ALLOWED_UPDATE_BRANCHES}")
+    return branch
+
+def version_check_url(branch):
+    validate_update_branch(branch)
+    return f"https://api.github.com/repos/N6LKA/AllStar-Herald/contents/version.txt?ref={branch}"
+
 UPDATE_CHECK_INTERVAL_SECONDS = 86400  # once a day
 
 # update-notice.json - a small, separately-fetched repo file that lets a
@@ -144,22 +171,30 @@ UPDATE_CHECK_INTERVAL_SECONDS = 86400  # once a day
 # change to the update mechanism itself gets a real in-app warning instead
 # of relying on people finding a forum post. Fetched via the same
 # api.github.com Contents API as version.txt, not raw.githubusercontent.com
-# (same CDN-staleness reasoning as HERALD_VERSION_CHECK_URL above). A
+# (same CDN-staleness reasoning as version_check_url() above). A
 # missing/empty manual_update_required_below means no notice is active -
-# the normal, expected case for almost every release.
+# the normal, expected case for almost every release. Always checked
+# against main regardless of which branch is selected for the update itself
+# - this is about whether the *currently running* code's own update
+# mechanism is broken, not a property of the target branch.
 HERALD_UPDATE_NOTICE_URL = "https://api.github.com/repos/N6LKA/AllStar-Herald/contents/update-notice.json?ref=main"
 
 # One-click self-update ("Update Herald" button, Global Settings) - runs the
-# same install.sh a user would otherwise fetch and run by hand over SSH, but
-# triggered from the web UI and always pinned to main (never develop - see
-# README's own warning about develop being untested). Reuses the codeload
-# tarball fetch pattern already used for the documented develop-branch
-# install command, not raw.githubusercontent.com (CDN staleness - see
-# HERALD_VERSION_CHECK_URL's comment above for the same reasoning).
-UPDATE_INSTALL_CMD = (
-    'curl -fsSL --retry 3 --retry-delay 5 "https://github.com/N6LKA/AllStar-Herald/archive/refs/heads/main.tar.gz" '
-    '| tar -xzO AllStar-Herald-main/install.sh | bash'
-)
+# same install.sh a user would otherwise fetch and run by hand over SSH,
+# triggered from the web UI, defaulting to main but selectable to develop
+# via the branch dropdown next to the button (see the README's own warning
+# about develop being untested - the same warning is shown in the UI when
+# develop is selected). Reuses the codeload tarball fetch pattern already
+# used for the documented develop-branch install command, not
+# raw.githubusercontent.com (CDN staleness - see version_check_url()'s
+# comment above for the same reasoning).
+def update_install_cmd(branch):
+    validate_update_branch(branch)
+    branch_arg = "" if branch == "main" else " -s -- --branch develop"
+    return (
+        f'curl -fsSL --retry 3 --retry-delay 5 "https://github.com/N6LKA/AllStar-Herald/archive/refs/heads/{branch}.tar.gz" '
+        f'| tar -xzO AllStar-Herald-{branch}/install.sh | bash{branch_arg}'
+    )
 UPDATE_TIMEOUT_SECONDS = 600  # ceiling for the whole install.sh run
 UPDATE_RESTART_HEALTH_TIMEOUT = 30  # seconds to wait for the service to report active again
 # Lives in the install directory but under a filename install.sh's own file
@@ -855,12 +890,13 @@ def _version_tuple(v):
             parts.append(0)
     return tuple(parts)
 
-def fetch_latest_version():
-    """GET the latest version.txt content from GitHub's Contents API. Returns
-    the version string, or None on any failure (network, non-200, rate
-    limit, etc.)."""
+def fetch_latest_version(branch="main"):
+    """GET the latest version.txt content from GitHub's Contents API for the
+    given branch. Returns the version string, or None on any failure
+    (network, non-200, rate limit, etc.)."""
+    validate_update_branch(branch)
     try:
-        req = urllib.request.Request(HERALD_VERSION_CHECK_URL, headers={
+        req = urllib.request.Request(version_check_url(branch), headers={
             "Accept": "application/vnd.github.v3.raw",
             "User-Agent": "herald-update-check",
         })
@@ -913,20 +949,24 @@ def _manual_update_required(notice_ok, min_version):
         return True  # couldn't verify - assume caution is warranted, see fetch_update_notice()
     return bool(min_version) and _version_tuple(VERSION) < _version_tuple(min_version)
 
-def perform_update_check(state):
-    """Checks GitHub for the latest release and records the result in state.
-    Shared by both update_check_tick() (the nightly automatic check) and
-    cmd_check_update() (the web UI's manual "Check for Updates" button) -
-    exactly one implementation of the version-compare logic, and exactly one
-    place (state["update_check"]) that both the header badge and the
-    Settings tab read the result from, so a manual click updates the header
-    immediately instead of waiting for the next automatic check."""
-    latest = fetch_latest_version()
+def perform_update_check(state, branch="main"):
+    """Checks GitHub for the latest release on the given branch and records
+    the result in state. Shared by both update_check_tick() (the nightly
+    automatic check, always branch="main" - see its own docstring) and
+    cmd_check_update() (the web UI's manual "Check for Updates" button,
+    branch from the UI's dropdown) - exactly one implementation of the
+    version-compare logic, and exactly one place (state["update_check"])
+    that both the header badge and the Settings tab read the result from,
+    so a manual click updates the header immediately instead of waiting for
+    the next automatic check."""
+    validate_update_branch(branch)
+    latest = fetch_latest_version(branch)
     notice_ok, min_manual, manual_message = fetch_update_notice()
     result = {
         "last_checked": time.time(),
         "current_version": VERSION,
         "latest_version": latest,
+        "checked_branch": branch,
         "update_available": False,
         "ahead_of_main": False,
         "error": None if latest else "Could not reach GitHub to check for updates",
@@ -952,7 +992,9 @@ def live_update_check(state):
     just the button's own flow. Re-deriving here is free (no GitHub call):
     latest_version/manual_update_required_below don't change until a new
     release actually ships or the notice file is edited, only our own
-    version does."""
+    version does. update_available/ahead_of_main stay relative to whichever
+    branch checked_branch says was last actually checked (main by default,
+    or develop if the user had it selected at the time)."""
     check = dict(state.get("update_check") or {})
     latest = check.get("latest_version")
     if latest and VERSION != "unknown":
@@ -973,12 +1015,18 @@ def live_update_check(state):
 def update_check_tick(state, now):
     """Call once per main-loop iteration - internally rate-limited to only
     actually check GitHub once every UPDATE_CHECK_INTERVAL_SECONDS (default
-    daily), regardless of PollInterval."""
+    daily), regardless of PollInterval. Always checks main, explicitly and
+    unconditionally, regardless of whatever branch a user may have selected
+    in the UI's dropdown for their own manual checks - there's no browser
+    session behind this automatic tick to read a selection from even if it
+    wanted to, and even the "update available" header badge itself should
+    only ever point at a real release, never an in-progress develop
+    snapshot."""
     last = (state.get("update_check") or {}).get("last_checked") or 0
     if (now - last) < UPDATE_CHECK_INTERVAL_SECONDS:
         return
     log_debug("Checking for herald updates...")
-    perform_update_check(state)
+    perform_update_check(state, branch="main")
 
 # ── Condition-word mapping (drives which pre-recorded audio snippet plays) ────
 
@@ -2382,11 +2430,13 @@ def cmd_catalog_voices(config):
 
 def cmd_check_update(config, args):
     """The web UI's manual "Check for Updates" button. Runs the same check
-    as the nightly automatic one (see perform_update_check()) and writes the
-    same state["update_check"], so the header badge reflects a manual check
-    immediately rather than waiting for the next automatic check."""
+    as the nightly automatic one (see perform_update_check()) against
+    whichever branch the UI's dropdown sent (main by default), and writes
+    the same state["update_check"], so the header badge reflects a manual
+    check immediately rather than waiting for the next automatic check."""
+    branch = validate_update_branch(getattr(args, "branch", "main"))
     state = load_state()
-    result = perform_update_check(state)
+    result = perform_update_check(state, branch=branch)
     if result["latest_version"] is None:
         print(json.dumps({
             "success": False,
@@ -2398,6 +2448,7 @@ def cmd_check_update(config, args):
         "success": True,
         "current_version": result["current_version"],
         "latest_version": result["latest_version"],
+        "checked_branch": result["checked_branch"],
         "update_available": result["update_available"],
         "ahead_of_main": result["ahead_of_main"],
         "manual_update_required": result["manual_update_required"],
@@ -2461,9 +2512,12 @@ def cmd_update(config, args):
     if one is already genuinely running (checked via the recorded pid, not
     just the status field, since a status file stuck on "in_progress" from a
     process that died without cleaning up shouldn't block updates forever).
-    Otherwise launches run-update as a fully detached background process and
-    returns immediately - the actual work can take minutes and must not be
-    tied to this request's lifetime (or PHP's execution time limit)."""
+    Otherwise launches run-update as a fully detached background process
+    with the requested branch (main by default; develop only when the UI's
+    dropdown was explicitly set to it) and returns immediately - the actual
+    work can take minutes and must not be tied to this request's lifetime
+    (or PHP's execution time limit)."""
+    branch = validate_update_branch(getattr(args, "branch", "main"))
     status = load_update_status()
     if status.get("status") == "in_progress" and _pid_alive(status.get("pid")):
         started = status.get("started_at")
@@ -2477,7 +2531,10 @@ def cmd_update(config, args):
     # Server-side backstop matching the UI's disabled button - see
     # HERALD_UPDATE_NOTICE_URL's comment. Checked here too (not just in the
     # web UI) so a stale cached page, an old browser tab, or a direct API
-    # call can't trigger an update we already know will silently fail.
+    # call can't trigger an update we already know will silently fail. This
+    # check is branch-agnostic on purpose - it's about whether this
+    # install's own update mechanism is broken, not a property of the
+    # requested target, so it blocks a develop update just as much as main.
     check = live_update_check(load_state())
     if check.get("manual_update_required"):
         print(json.dumps({
@@ -2488,19 +2545,20 @@ def cmd_update(config, args):
         return
 
     proc = subprocess.Popen(
-        [sys.executable, os.path.realpath(__file__), "run-update"],
+        [sys.executable, os.path.realpath(__file__), "run-update", "--branch", branch],
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
-    print(json.dumps({"success": True, "message": "Update started", "pid": proc.pid}))
+    print(json.dumps({"success": True, "message": "Update started", "pid": proc.pid, "branch": branch}))
 
 def cmd_run_update(config, args):
     """Not meant to be called directly - launched detached by cmd_update().
-    Downloads and runs install.sh from main (non-interactively; every
-    install.sh prompt is already gated behind "is a real terminal attached",
-    which this process never has), then verifies the daemon actually comes
-    back up on the new version before declaring success, rather than trusting
-    that the restart command not erroring means it worked.
+    Downloads and runs install.sh from the requested branch (main by
+    default, non-interactively; every install.sh prompt is already gated
+    behind "is a real terminal attached", which this process never has),
+    then verifies the daemon actually comes back up on the new version
+    before declaring success, rather than trusting that the restart command
+    not erroring means it worked.
 
     This process keeps running on its own old in-memory code even after
     install.sh overwrites this very file on disk - normal, safe Linux
@@ -2508,6 +2566,7 @@ def cmd_run_update(config, args):
     exits normally once done; only the separate `herald` systemd
     service actually restarts onto the new code."""
     global VERSION
+    branch = validate_update_branch(getattr(args, "branch", "main"))
     pid = os.getpid()
     started = time.time()
     from_version = VERSION
@@ -2531,11 +2590,11 @@ def cmd_run_update(config, args):
         # just log it so it's visible in journalctl if anyone goes looking.
         log_warn(f"Could not write pre-update config backup: {e}")
 
-    update_status(stage="downloading", message="Downloading the latest release from main...")
+    update_status(stage="downloading", message=f"Downloading the latest release from {branch}...")
 
     try:
         update_status(stage="installing", message="Running the installer...")
-        result = subprocess.run(["bash", "-c", UPDATE_INSTALL_CMD], capture_output=True, text=True,
+        result = subprocess.run(["bash", "-c", update_install_cmd(branch)], capture_output=True, text=True,
                                  timeout=UPDATE_TIMEOUT_SECONDS)
         combined_log = ((result.stdout or "") + "\n" + (result.stderr or ""))[-6000:]
 
@@ -3462,10 +3521,13 @@ def build_arg_parser():
 
     sub.add_parser("catalog-voices", help="List the full Piper voice catalog with installed status")
 
-    sub.add_parser("check-update", help="Check GitHub for a newer release and record the result")
+    p_check_update = sub.add_parser("check-update", help="Check GitHub for a newer release and record the result")
+    p_check_update.add_argument("--branch", choices=ALLOWED_UPDATE_BRANCHES, default="main")
     sub.add_parser("update-status", help="Print the current/last one-click update status")
-    sub.add_parser("update", help="Start a one-click update from main in the background, if none is already running")
-    sub.add_parser("run-update", help="[internal] Perform the actual update - launched detached by `update`")
+    p_update = sub.add_parser("update", help="Start a one-click update from the given branch in the background, if none is already running")
+    p_update.add_argument("--branch", choices=ALLOWED_UPDATE_BRANCHES, default="main")
+    p_run_update = sub.add_parser("run-update", help="[internal] Perform the actual update - launched detached by `update`")
+    p_run_update.add_argument("--branch", choices=ALLOWED_UPDATE_BRANCHES, default="main")
 
     p_install_voice = sub.add_parser("install-voice", help="Download and install a Piper voice")
     p_install_voice.add_argument("voice_id")
