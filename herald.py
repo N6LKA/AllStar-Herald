@@ -173,11 +173,22 @@ UPDATE_CHECK_INTERVAL_SECONDS = 86400  # once a day
 # api.github.com Contents API as version.txt, not raw.githubusercontent.com
 # (same CDN-staleness reasoning as version_check_url() above). A
 # missing/empty manual_update_required_below means no notice is active -
-# the normal, expected case for almost every release. Always checked
-# against main regardless of which branch is selected for the update itself
-# - this is about whether the *currently running* code's own update
-# mechanism is broken, not a property of the target branch.
-HERALD_UPDATE_NOTICE_URL = "https://api.github.com/repos/N6LKA/AllStar-Herald/contents/update-notice.json?ref=main"
+# the normal, expected case for almost every release.
+#
+# Checked against the SAME branch as the rest of that check/update - main
+# for the daily automatic tick (see update_check_tick()), whichever branch
+# the UI's dropdown selected for a manual check or the Update button itself.
+# This is deliberate, not an oversight: develop and main are kept in sync
+# except during active work, and manual_update_required_below is a
+# single always-forward threshold (see the wiki's maintainer note) - so
+# develop's copy, mid-development, can only ever be equal to or newer than
+# main's, never stale/lower. Checking develop's own notice when develop is
+# selected correctly warns about anything broken in develop's own current
+# tip (e.g. a WIP change to the update mechanism itself, not yet merged to
+# main) - something main's copy has no way to know about yet.
+def update_notice_url(branch):
+    validate_update_branch(branch)
+    return f"https://api.github.com/repos/N6LKA/AllStar-Herald/contents/update-notice.json?ref={branch}"
 
 # One-click self-update ("Update Herald" button, Global Settings) - runs the
 # same install.sh a user would otherwise fetch and run by hand over SSH,
@@ -915,8 +926,9 @@ DEFAULT_MANUAL_UPDATE_MESSAGE = (
     "https://raw.githubusercontent.com/N6LKA/AllStar-Herald/main/install.sh | sudo bash"
 )
 
-def fetch_update_notice():
-    """GET update-notice.json from GitHub. Returns (ok, min_version, message).
+def fetch_update_notice(branch="main"):
+    """GET update-notice.json from GitHub for the given branch. Returns
+    (ok, min_version, message).
 
     Deliberately fails CLOSED, not open, unlike fetch_latest_version() above
     it: this file is expected to always exist and always be fetchable from
@@ -929,8 +941,9 @@ def fetch_update_notice():
     precisely when it should assume the worst and say so, not stay quiet.
     ok=True only when the file was actually fetched and parsed - callers use
     that to distinguish "confirmed no notice active" from "couldn't check.\""""
+    validate_update_branch(branch)
     try:
-        req = urllib.request.Request(HERALD_UPDATE_NOTICE_URL, headers={
+        req = urllib.request.Request(update_notice_url(branch), headers={
             "Accept": "application/vnd.github.v3.raw",
             "User-Agent": "herald-update-check",
         })
@@ -961,7 +974,7 @@ def perform_update_check(state, branch="main"):
     the next automatic check."""
     validate_update_branch(branch)
     latest = fetch_latest_version(branch)
-    notice_ok, min_manual, manual_message = fetch_update_notice()
+    notice_ok, min_manual, manual_message = fetch_update_notice(branch)
     result = {
         "last_checked": time.time(),
         "current_version": VERSION,
@@ -2529,18 +2542,21 @@ def cmd_update(config, args):
         return
 
     # Server-side backstop matching the UI's disabled button - see
-    # HERALD_UPDATE_NOTICE_URL's comment. Checked here too (not just in the
-    # web UI) so a stale cached page, an old browser tab, or a direct API
-    # call can't trigger an update we already know will silently fail. This
-    # check is branch-agnostic on purpose - it's about whether this
-    # install's own update mechanism is broken, not a property of the
-    # requested target, so it blocks a develop update just as much as main.
-    check = live_update_check(load_state())
-    if check.get("manual_update_required"):
+    # update_notice_url()'s comment. Checked here too (not just in the web
+    # UI) so a stale cached page, an old browser tab, or a direct API call
+    # can't trigger an update we already know will silently fail. Fetched
+    # fresh for the SPECIFIC branch being requested here, deliberately not
+    # read from the cached state["update_check"] - that cache reflects
+    # whichever branch was last manually checked, which may not be the one
+    # someone just picked in the dropdown right before clicking Update (e.g.
+    # they checked main earlier, then switched to develop and clicked
+    # Update without checking again first). One extra small request here is
+    # worth it for this being the actual safety gate, not just the display.
+    notice_ok, min_manual, manual_message = fetch_update_notice(branch)
+    if _manual_update_required(notice_ok, min_manual):
         print(json.dumps({
             "success": False,
-            "message": check.get("manual_update_message") or
-                       "This update requires a manual install over SSH - the one-click Update button won't work for this version.",
+            "message": manual_message if notice_ok else DEFAULT_MANUAL_UPDATE_MESSAGE,
         }))
         return
 

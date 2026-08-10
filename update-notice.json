@@ -1,4 +1,4 @@
 {
-  "manual_update_required_below": null,
-  "message": null
+  "manual_update_required_below": "1.26.0",
+  "message": "Versions before 1.26.0 must update manually via SSH - the in-app Update button can't cross this boundary. Run: curl -fsSL -H \"Cache-Control: no-cache\" https://raw.githubusercontent.com/N6LKA/AllStar-Herald/main/install.sh | sudo bash - see https://github.com/N6LKA/AllStar-Herald/discussions/52 for details."
 }
