@@ -177,6 +177,13 @@ window.addEventListener('pageshow', async function() {
             // before after edits to the fragment's own CSS/markup.
             const resp = await fetch("/herald/herald-ui-fragment.php?_=" + Date.now(), { cache: "no-store" });
             gate.innerHTML = await resp.text();
+            // Allmon3's own login can't be verified server-side by anything
+            // outside Allmon3 itself (its session cookie is scoped to
+            // /allmon3/master, unreachable from any other path) - route
+            // through the deliberately-unauthenticated api-open/ endpoints
+            // instead of the session-protected ones Supermon/standalone use.
+            // Must be set before herald-ui.js loads, since it reads this once.
+            window.HERALD_API_BASE = "/herald/api-open/";
             const s = document.createElement("script");
             // Same cache-busting reasoning as the fragment fetch above - this
             // was previously missed here, so herald-ui.js itself could stay

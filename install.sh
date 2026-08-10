@@ -465,6 +465,28 @@ else
     warn "Review the rest of the config before starting: $CONFIG_DIR/herald.conf"
 fi
 
+# Standalone UI login — seeded to admin/admin only if it doesn't already
+# exist (same "don't overwrite" rule as herald.conf above), so re-running
+# install.sh never resets a password someone's already changed. Lives in
+# CONFIG_DIR specifically so it's covered by the existing preserve-by-default
+# / --purge-config behavior in uninstall.sh for free, with no new logic
+# needed there. Hash computed with PHP's own password_hash() (bcrypt) -
+# php-cli is already an install dependency for the web UI.
+AUTH_FILE="$CONFIG_DIR/auth.json"
+if [[ -f "$AUTH_FILE" ]]; then
+    info "Standalone UI login already configured — leaving it as-is: $AUTH_FILE"
+else
+    info "Setting up the standalone UI's default login (admin/admin — change this after logging in) ..."
+    php -r 'echo json_encode(["username" => "admin", "password_hash" => password_hash("admin", PASSWORD_DEFAULT)]);' > "$AUTH_FILE"
+    # www-data, not root: unlike herald.conf (which the web UI only ever
+    # touches indirectly through the herald CLI's narrow sudoers rule),
+    # login.php/change_credentials.php read and write this file directly as
+    # the web server's own user - no sudo involved, since it's not a
+    # privileged operation the way editing the daemon's own config is.
+    chmod 600 "$AUTH_FILE"
+    chown www-data:www-data "$AUTH_FILE"
+fi
+
 # Migrate anyone still on the pre-1.25.2 /tmp-based snapshot default — that
 # path is invisible to anything Apache exec()s when PrivateTmp=true
 # (Debian/Ubuntu's apache2.service default), which silently broke the
@@ -534,12 +556,26 @@ if ! php -r 'exit(function_exists("curl_init") ? 0 : 1);' 2>/dev/null; then
 fi
 
 info "Installing web UI to $WEB_DIR ..."
-mkdir -p "$WEB_DIR/api" "$WEB_DIR/img"
-for f in herald-common.php herald-ui-fragment.php herald-ui.js; do
+mkdir -p "$WEB_DIR/api" "$WEB_DIR/api/_impl" "$WEB_DIR/api-open" "$WEB_DIR/img"
+for f in herald-common.php herald-ui-fragment.php herald-ui.js index.php login.php logout.php; do
     fetch_repo_file "web/$f" "$WEB_DIR/$f"
 done
-for f in list.php voices.php catalog_voices.php install_voice.php remove_voice.php play.php reload.php toggle.php toggle_scheduled.php toggle_rotation.php remove.php add_rotation.php add_scheduled.php edit_rotation.php edit_scheduled.php settings.php reorder_rotation.php playback_history.php clear_history.php config_export.php config_import.php version_check.php update.php update_status.php timeweather.php timeweather_test.php add_timeweather_message.php edit_timeweather_message.php remove_timeweather_message.php toggle_timeweather_message.php node_id.php node_id_test.php; do
+# The API endpoints below exist in two forms, both fetched from the same
+# 32 filenames in the repo: a session-protected wrapper in api/ (used by
+# Supermon and the standalone UI, both of which can establish a real login
+# session) and a deliberately-unauthenticated pass-through in api-open/
+# (used only by Allmon3, whose own login can't be verified server-side
+# without modifying Allmon3 itself - see herald-common.php's session-helper
+# comments). change_credentials.php is the one exception - it only exists
+# in api/, never api-open/, since an unauthenticated version would let
+# anyone rewrite the standalone login with no check at all.
+API_ENDPOINTS="list.php voices.php catalog_voices.php install_voice.php remove_voice.php play.php reload.php toggle.php toggle_scheduled.php toggle_rotation.php remove.php add_rotation.php add_scheduled.php edit_rotation.php edit_scheduled.php settings.php reorder_rotation.php playback_history.php clear_history.php config_export.php config_import.php version_check.php update.php update_status.php timeweather.php timeweather_test.php add_timeweather_message.php edit_timeweather_message.php remove_timeweather_message.php toggle_timeweather_message.php node_id.php node_id_test.php"
+for f in $API_ENDPOINTS change_credentials.php; do
     fetch_repo_file "web/api/$f" "$WEB_DIR/api/$f"
+done
+for f in $API_ENDPOINTS; do
+    fetch_repo_file "web/api/_impl/$f" "$WEB_DIR/api/_impl/$f"
+    fetch_repo_file "web/api-open/$f" "$WEB_DIR/api-open/$f"
 done
 for f in herald-icon.png herald-logo.png herald-title-banner.png; do
     fetch_repo_file "web/img/$f" "$WEB_DIR/img/$f"
@@ -798,6 +834,9 @@ fi
 if [[ -f "$SUPERMON_FOOTER" ]]; then
     echo "           Supermon — look for the \"AllStar Herald\" link at the bottom after logging in"
 fi
+NODE_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+echo "           Standalone — http://${NODE_IP:-<this-host>}/herald/  (login: admin / admin — change"
+echo "           this on the Global Settings tab under 'Login Settings' before exposing this beyond your LAN)"
 echo ""
 if $TW_DETECTED; then
     warn "An existing Time-Weather-Announce install was detected on this system."

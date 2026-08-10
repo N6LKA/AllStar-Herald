@@ -9,7 +9,7 @@
 
 **A full-featured announcement and audio suite for ASL3/app_rpt.**
 
-`herald` started as a drop-in replacement for the native `app_rpt` tail message function and has grown into a complete announcement toolkit: reliable unkey-triggered tail messages, cron-style scheduled announcements, SkywarnPlus weather alert integration, built-in time & weather announcements, a station ID audio generator, neural TTS voices throughout, and an optional web UI for Allmon3 and Supermon.
+`herald` started as a drop-in replacement for the native `app_rpt` tail message function and has grown into a complete announcement toolkit: reliable unkey-triggered tail messages, cron-style scheduled announcements, SkywarnPlus weather alert integration, built-in time & weather announcements, a station ID audio generator, neural TTS voices throughout, and a web UI — embedded in Allmon3 or Supermon, or standalone with its own login.
 
 📖 **[Full documentation, configuration reference, and troubleshooting → see the Wiki](https://github.com/N6LKA/AllStar-Herald/wiki)**
 
@@ -35,7 +35,7 @@ Back in medieval times, a herald was the person who rode into town to announce n
 - **Time & Weather Announcements** — built-in `saytime.pl`/`weather.sh` replacement with recordings or custom Piper-TTS templates; the same weather data can also feed Allmon3's panel and Supermon's own weather-conditions line, so every display agrees
 - **Node ID Generator** — generate a station ID recording for AllStarLink's own ID feature
 - **Piper neural TTS** — natural-sounding voices with adjustable speech speed (0.5x–2.0x), festival/espeak-ng fallback
-- **Web UI** — optional browser-based management for Allmon3 and Supermon, gated behind each app's own login
+- **Web UI** — browser-based management, available three ways: embedded in Allmon3 or Supermon (gated behind each app's own login), or standalone at `http://<host>/herald/` with its own built-in username/password login (default `admin`/`admin` — change it on first login) for anyone not running either
 - **One-click updates** — check for and install updates from the web UI, with automatic post-restart health verification
 - **Config backup/restore, playback history, missing-file health checks** — see the Wiki for details
 
@@ -121,11 +121,11 @@ The installer will:
 4. Install the `herald` management command to `/usr/local/bin/herald`
 5. Create an example config in the same `/etc/asterisk/scripts/herald/` directory (if no config exists)
 6. Install and enable the `herald` systemd service, and start it automatically
-7. Install the web UI to `/var/www/html/herald/` — installs `apache2` + `php` first if neither Allmon3 nor Supermon is already present, then installs a dedicated page directly into Allmon3's and/or Supermon's own directory (with a sidebar/footer link to it) for whichever is detected
+7. Install the web UI to `/var/www/html/herald/` — installs `apache2` + `php` first if neither Allmon3 nor Supermon is already present, then installs a dedicated page directly into Allmon3's and/or Supermon's own directory (with a sidebar/footer link to it) for whichever is detected, **and** a standalone version at `http://<node-ip>/herald/` with its own login, reachable either way
 
 **After installation:**
 
-1. Edit the config: `sudo nano /etc/asterisk/scripts/herald/herald.conf`
+1. Log into the web UI at `http://<node-ip>/herald/` (shown at the end of the install output) — **username `admin`, password `admin`** — and do your initial setup from there (Node number, Tail Messages, etc.). Change the default password on the Global Settings tab under **Login Settings** before exposing this beyond your own LAN. Prefer editing the config file directly? `sudo nano /etc/asterisk/scripts/herald/herald.conf`
 2. Check it's running: `herald status`
 
 ---
