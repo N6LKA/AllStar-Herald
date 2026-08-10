@@ -1015,6 +1015,7 @@
           <div class="msg" id="herald-daemon-msg"></div>
 
           <p class="muted" style="margin-top:16px; font-size:1.15em;">Version: <span id="set-herald-version">—</span></p>
+          <div id="manual-update-warning" class="msg err" style="display:none; margin-bottom:8px;"></div>
           <p>
             <button class="btn-secondary" id="btn-check-update">Check for Updates</button>
             <button class="btn-primary" id="btn-run-update">Update Herald</button>
