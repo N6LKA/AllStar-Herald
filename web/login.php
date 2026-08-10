@@ -69,12 +69,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     border-radius: 8px;
     padding: 32px;
     width: 100%;
-    max-width: 340px;
+    max-width: 560px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   }
-  .login-brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 20px; }
-  .login-brand img.herald-icon { height: 36px; display: block; }
-  .login-brand img.herald-banner { height: 36px; display: block; }
+  .login-brand { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 24px; }
+  .login-brand img.herald-icon { height: 110px; display: block; }
+  .login-brand img.herald-banner { height: 110px; display: block; }
   .login-card label { display: block; margin-top: 14px; font-weight: bold; font-size: 0.9em; }
   .login-card input[type=text], .login-card input[type=password] {
     width: 100%;
