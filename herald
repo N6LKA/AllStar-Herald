@@ -95,6 +95,7 @@ Scheduled Announcements (clock-triggered):
 
 Settings:
   update-settings [--node <n>] [--debug true|false] [--min-interval <n>]
+                  [--keyup-leadin-ms <n>]
                   [--network-keyup-trigger true|false]
                   [--swp-enable true|false] [--swp-wxfile <path>]
                   [--swp-threshold <n>]

@@ -1058,8 +1058,17 @@
 
     <div class="card">
       <h3 style="margin-top:0;">General Settings</h3>
-      <label>Node</label>
-      <input type="text" id="set-node" style="width: 200px;">
+      <div class="field-row">
+        <div>
+          <label>Node</label>
+          <input type="text" id="set-node" style="width: 200px;">
+        </div>
+        <div>
+          <label>Global Keyup Lead-In (ms)</label>
+          <input type="text" id="set-keyup-leadin-ms" style="width: 100px;">
+        </div>
+      </div>
+      <p class="muted" style="margin-top:6px; margin-bottom:0; font-size:0.9em;">A short silent pause played before every announcement (Tail Messages, Scheduled, Time &amp; Weather, Node ID — everything), giving the transmitter and downstream radios a moment to key up and settle before the real audio starts. Without it, the first word or two can get clipped. In milliseconds — e.g. <code>500</code> for half a second, <code>1000</code> for a full second. Leave at <code>0</code> to disable (no pause, matches previous behavior).</p>
 
       <div class="toggle-row" style="margin-top: 16px;">
         <label class="toggle-switch">

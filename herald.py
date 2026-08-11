@@ -81,6 +81,15 @@ TW_COORD_CACHE  = os.path.join(INSTALL_DIR, "timeweather-coords.cache")
 # by build_timeweather_audio() since /run's own contents don't survive a
 # reboot either.
 TW_TEMP_OUTDIR  = "/run/herald/timeweather-tmp"
+
+# Global Keyup Lead-In: a short cached silence file played immediately
+# before every real announcement, giving the transmitter (and downstream
+# receivers) time to key up and settle before real audio starts - without
+# this, the first word or two of a message can get clipped. Same /run
+# reasoning as TW_TEMP_OUTDIR above (not /tmp, PrivateTmp isolation).
+# Regenerated only when the configured duration actually changes (see
+# ensure_keyup_leadin_file()), not on every single play.
+KEYUP_LEADIN_FILE = "/run/herald/keyup-lead-in.wav"
 DEFAULT_TW_CRON = "0 * * * *"
 DEFAULT_TW_WEATHER_CACHE_MIN = 10
 DEFAULT_TW_MODE = "recordings"
@@ -580,9 +589,43 @@ def audio_duration(filepath):
     except Exception:
         return None
 
+_keyup_leadin_ms = 0  # Global Keyup Lead-In setting, refreshed by main() on
+                      # load/SIGHUP reload - see ensure_keyup_leadin_file() and
+                      # play_file() below.
+_keyup_leadin_cached_ms = None  # duration KEYUP_LEADIN_FILE was actually built
+                                 # for, so it's only regenerated when it changes
+
+def ensure_keyup_leadin_file(lead_in_ms):
+    """(Re)generates the cached lead-in silence WAV via sox if the configured
+    duration has changed since it was last built (or the file went missing).
+    No-op if lead_in_ms <= 0. sox's null input ("-n") is an infinite stream
+    of silence at the given format - trim just takes the first N seconds of
+    it, so this produces true silence, not a synthesized tone."""
+    global _keyup_leadin_cached_ms
+    if lead_in_ms <= 0:
+        return
+    if _keyup_leadin_cached_ms == lead_in_ms and os.path.exists(KEYUP_LEADIN_FILE):
+        return
+    os.makedirs(os.path.dirname(KEYUP_LEADIN_FILE), exist_ok=True)
+    seconds = lead_in_ms / 1000.0
+    try:
+        subprocess.run(
+            ["sox", "-n", "-r", "8000", "-c", "1", KEYUP_LEADIN_FILE, "trim", "0.0", str(seconds)],
+            capture_output=True, timeout=10, check=True,
+        )
+        _keyup_leadin_cached_ms = lead_in_ms
+    except Exception as e:
+        log_warn(f"Could not generate keyup lead-in silence file: {e}")
+
 def play_file(node, filepath, play_mode="local"):
     path_no_ext = str(Path(filepath).with_suffix(""))
     cmd = "rpt playback" if play_mode == "global" else "rpt localplay"
+    if _keyup_leadin_ms > 0:
+        ensure_keyup_leadin_file(_keyup_leadin_ms)
+        if os.path.exists(KEYUP_LEADIN_FILE):
+            leadin_no_ext = str(Path(KEYUP_LEADIN_FILE).with_suffix(""))
+            asterisk_cmd(f"{cmd} {node} {leadin_no_ext}")
+            time.sleep(_keyup_leadin_ms / 1000.0)
     log_info(f"Playing ({play_mode}): {Path(filepath).name} on node {node}")
     asterisk_cmd(f"{cmd} {node} {path_no_ext}")
 
@@ -2363,6 +2406,7 @@ def process_timeweather_test_request(tw_cfg, state, node):
 def extract_config(config):
     node  = str(config.get("Node", "")).strip()
     debug = config.get("Debug", False)
+    keyup_leadin_ms = int(config.get("KeyupLeadInMs", 0) or 0)
 
     tm       = config.get("TailMessage", {}) or {}
     tm_on    = tm.get("Enable", True)
@@ -2390,6 +2434,7 @@ def extract_config(config):
     return {
         "node":            node,
         "debug":           debug,
+        "keyup_leadin_ms": keyup_leadin_ms,
         "tm_on":           tm_on,
         "min_int":         min_int,
         "rotation":        rotation,
@@ -2856,6 +2901,7 @@ def cmd_list_json(config):
     out = {
         "node":    cfg["node"],
         "debug":   cfg["debug"],
+        "keyup_leadin_ms": cfg["keyup_leadin_ms"],
         "herald_enabled": not os.path.exists(DISABLE_FLAG),
         "version": VERSION,
         "ami_connected": _ami_up,
@@ -3215,6 +3261,8 @@ def cmd_update_settings(config, args):
         config["Node"] = args.node
     if args.debug is not None:
         config["Debug"] = (args.debug == "true")
+    if args.keyup_leadin_ms is not None:
+        config["KeyupLeadInMs"] = args.keyup_leadin_ms
 
     tm = config.setdefault("TailMessage", {})
     if args.min_interval is not None:
@@ -3541,6 +3589,7 @@ def build_arg_parser():
     p_settings = sub.add_parser("update-settings", help="Update general daemon settings")
     p_settings.add_argument("--node")
     p_settings.add_argument("--debug", choices=["true", "false"])
+    p_settings.add_argument("--keyup-leadin-ms", dest="keyup_leadin_ms", type=int)
     p_settings.add_argument("--min-interval", dest="min_interval", type=int)
     p_settings.add_argument("--network-keyup-trigger", dest="network_keyup_trigger", choices=["true", "false"])
     p_settings.add_argument("--swp-enable",    dest="swp_enable",    choices=["true", "false"])
@@ -3733,7 +3782,7 @@ def _poll_ami(ami, node):
     return _ami_rx_keyed, _ami_conn_keyed
 
 def main():
-    global DEBUG, _ami_up, _ami_rx_keyed, _ami_conn_keyed
+    global DEBUG, _ami_up, _ami_rx_keyed, _ami_conn_keyed, _keyup_leadin_ms
 
     log_info(f"herald v{VERSION} starting")
 
@@ -3742,6 +3791,7 @@ def main():
 
     node            = cfg["node"]
     DEBUG           = cfg["debug"]
+    _keyup_leadin_ms = cfg["keyup_leadin_ms"]
     tm_on           = cfg["tm_on"]
     min_int         = cfg["min_int"]
     rotation        = cfg["rotation"]
@@ -3836,6 +3886,7 @@ def main():
                 cfg    = extract_config(config)
                 node            = cfg["node"]
                 DEBUG           = cfg["debug"]
+                _keyup_leadin_ms = cfg["keyup_leadin_ms"]
                 tm_on           = cfg["tm_on"]
                 min_int         = cfg["min_int"]
                 rotation        = cfg["rotation"]
