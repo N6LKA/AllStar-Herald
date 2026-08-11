@@ -477,6 +477,7 @@
     document.getElementById('tw-snapshot-path').value = twWeather.SnapshotPath || '/etc/asterisk/scripts/herald/weather.json';
     document.getElementById('tw-snapshot-label').value = twWeather.SnapshotLabel || '';
     updateSnapshotFieldsVisibility();
+    document.getElementById('tw-play-wx-after-announce').checked = !!tw.PlayWxAlertAfterAnnounce;
     document.getElementById('tw-callsign').value = twTemplates.Callsign || '';
     document.getElementById('tw-lookahead-seconds').value = twTemplates.LookaheadSeconds || 5;
     twSwpNgInstalled = !!twHealth.skywarnplus_ng_installed;
@@ -1215,6 +1216,7 @@
         weather_snapshot_label: document.getElementById('tw-snapshot-label').value.trim(),
         callsign: document.getElementById('tw-callsign').value.trim(),
         lookahead_seconds: document.getElementById('tw-lookahead-seconds').value,
+        play_wx_after_announce: document.getElementById('tw-play-wx-after-announce').checked,
       }),
     });
     showMsg(msgEl, data.message || (data.success ? 'Settings saved and reloaded' : 'Failed'), data.success);

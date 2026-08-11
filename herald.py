@@ -502,6 +502,8 @@ def load_state():
         "timeweather_played": None,
         "timeweather_pending": False,
         "timeweather_busy_until": 0.0,
+        "timeweather_wx_pending": False,
+        "timeweather_wx_busy_until": 0.0,
         "timeweather_weather_cache": None,
         "timeweather_tempest_station": None,
         "timeweather_template_last_id": None,
@@ -2141,6 +2143,17 @@ def play_timeweather(tw_cfg, state, node, now, now_dt, mode="scheduled", warning
         minute_key = now_dt.strftime("%Y-%m-%d %H:%M")
         fresh_state["timeweather_played"] = minute_key
         fresh_state["timeweather_pending"] = False
+        # Opt-in follow-up (PlayWxAlertAfterAnnounce): flag it here, but the
+        # actual "is there an alert to play" check happens later in the main
+        # loop once timeweather_busy_until elapses (see the dedicated block
+        # right after the Time & Weather section) - this function has no
+        # access to swp_on/swp_file/swp_thr, and checking "is there an active
+        # alert" now would race with SkywarnPlus-NG's own poll cadence anyway.
+        # Scoped to real hourly occurrences only, not DTMF/test previews - a
+        # manual on-demand time check via DTMF shouldn't also force an
+        # unrelated WX alert to play.
+        if tw_cfg.get("PlayWxAlertAfterAnnounce", False):
+            fresh_state["timeweather_wx_pending"] = True
     save_state(fresh_state)
     # Keep the caller's own `state` object (the daemon's long-lived instance,
     # in the "scheduled" path) in sync with what was actually just persisted.
@@ -3244,6 +3257,8 @@ def cmd_update_timeweather(config, args):
         tw["Mode"] = args.mode
     if args.cron is not None:
         tw.setdefault("Schedule", {})["Cron"] = args.cron
+    if args.play_wx_after_announce is not None:
+        tw["PlayWxAlertAfterAnnounce"] = (args.play_wx_after_announce == "true")
 
     tpl = tw.setdefault("Templates", {})
     if args.callsign is not None:
@@ -3577,6 +3592,7 @@ def build_arg_parser():
     p_tw.add_argument("--weather-snapshot-label", dest="weather_snapshot_label")
     p_tw.add_argument("--callsign")
     p_tw.add_argument("--lookahead-seconds", dest="lookahead_seconds", type=int)
+    p_tw.add_argument("--play-wx-after-announce", dest="play_wx_after_announce", choices=["true", "false"])
 
     p_tw_test = sub.add_parser("test-timeweather", help="Preview the Time & Weather Announcement (doesn't affect scheduling; use play-timeweather for DTMF)")
     p_tw_test.add_argument("--at", default=None,
@@ -3959,6 +3975,41 @@ def main():
             elif should_play_timeweather(timeweather, state, node, now_dt):
                 play_timeweather(timeweather, state, node, now, now_dt)
 
+            # ── Time & Weather → forced WX alert follow-up (opt-in, self-timed) ─
+            # PlayWxAlertAfterAnnounce: once the just-played Time & Weather
+            # announcement has finished (timeweather_busy_until elapsed),
+            # force-play the current SkywarnPlus/-NG alert if one is active -
+            # deliberately not queued back-to-back with the announcement
+            # itself (that would require blocking the main loop, or trusting
+            # Asterisk to queue two localplay commands cleanly). Marks the
+            # alert as "already announced" (swp_last_mtime/swp_next_is_rotation)
+            # and opens timeweather_wx_busy_until so the reactive Tail Message
+            # block below defers instead of replaying the same alert off of
+            # its own NetworkKeyupTrigger cascade (see the tail-message gate
+            # further down). If no alert is active by the time this fires,
+            # this is a no-op - normal tail-message behavior (including
+            # whatever the NetworkKeyupTrigger cascade already does today)
+            # proceeds untouched, exactly as when the toggle is off.
+            if state.get("timeweather_wx_pending") and now >= state.get("timeweather_busy_until", 0):
+                state["timeweather_wx_pending"] = False
+                if swp_on and wx_is_active(swp_file, swp_thr):
+                    log_info("Playing SkywarnPlus WX alert after Time & Weather announcement")
+                    play_file(node, swp_file)
+                    log_playback(state, "wx", "SkywarnPlus WX Alert (after Time & Weather)", swp_file, node)
+                    if swp_ng_on:
+                        swp_mtime = state.get("swp_ng_last_change")
+                    else:
+                        try:
+                            swp_mtime = os.path.getmtime(swp_file)
+                        except OSError:
+                            swp_mtime = None
+                    state["swp_last_mtime"]       = swp_mtime
+                    state["swp_next_is_rotation"] = True
+                    state["last_tail_played"]     = now
+                    wx_duration = audio_duration(swp_file) or DEFAULT_ANNOUNCEMENT_DURATION
+                    state["timeweather_wx_busy_until"] = now + min(wx_duration, MAX_BUSY_SECONDS) + BUSY_GRACE_SECONDS
+                save_state(state)
+
             # ── Scheduled announcements (time-driven) ─────────────────────
             for sched in scheduled:
                 if should_play_scheduled(sched, state, node, now_dt):
@@ -3987,6 +4038,9 @@ def main():
 
                 elif now < state.get("scheduled_busy_until", 0):
                     log_info("Scheduled announcement in progress - delaying tail message to next unkey")
+
+                elif now < state.get("timeweather_wx_busy_until", 0):
+                    log_info("WX alert just played after Time & Weather - delaying tail message to next unkey")
 
                 elif swp_active:
                     if swp_ng_on:

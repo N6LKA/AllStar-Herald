@@ -32,7 +32,7 @@ Back in medieval times, a herald was the person who rode into town to announce n
 
 - **Tail Messages** — reliable, unkey-triggered rotating announcements with SkywarnPlus WX priority and optional day/time-window gating
 - **Scheduled Announcements** — cron-style, clock-triggered, local or global playback
-- **Time & Weather Announcements** — built-in `saytime.pl`/`weather.sh` replacement with recordings or custom Piper-TTS templates; the same weather data can also feed Allmon3's panel and Supermon's own weather-conditions line, so every display agrees
+- **Time & Weather Announcements** — built-in `saytime.pl`/`weather.sh` replacement with recordings or custom Piper-TTS templates; the same weather data can also feed Allmon3's panel and Supermon's own weather-conditions line, so every display agrees; optionally force-plays the current SkywarnPlus/-NG WX alert right after each announcement, independent of repeater activity
 - **Node ID Generator** — generate a station ID recording for AllStarLink's own ID feature
 - **Piper neural TTS** — natural-sounding voices with adjustable speech speed (0.5x–2.0x), festival/espeak-ng fallback
 - **Web UI** — browser-based management, available three ways: embedded in Allmon3 or Supermon (gated behind each app's own login), or standalone at `http://<host>/herald/` with its own built-in username/password login (default `admin`/`admin` — change it on first login) for anyone not running either

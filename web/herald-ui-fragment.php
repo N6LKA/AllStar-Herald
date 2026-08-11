@@ -890,6 +890,15 @@
       </div>
     </div>
     <p class="muted" style="margin-top:10px; margin-bottom:0; font-size:0.9em;">Writes the same weather data used above (no extra fetch) to a small JSON file — for example, for <a href="https://github.com/N6LKA/ASL3-SkywarnPlus-NG-Bridge" target="_blank">ASL3-SkywarnPlus-NG-Bridge</a>'s Allmon3 panel. Checked once a minute.</p>
+
+    <div class="toggle-row" style="margin-top: 14px;">
+      <label class="toggle-switch">
+        <input type="checkbox" id="tw-play-wx-after-announce">
+        <span class="toggle-slider"></span>
+      </label>
+      <span class="toggle-label">Play WX Alert from SkywarnPlus after this announcement</span>
+    </div>
+    <p class="muted" style="margin-top:6px; margin-bottom:0; font-size:0.9em;">If a SkywarnPlus/-NG alert is currently active, play it immediately after every scheduled Time &amp; Weather announcement finishes — regardless of repeater activity. While it's playing, the normal Tail Message system holds off so the alert isn't announced twice in a row. Leave this off to rely on the Tail Message system's own unkey-triggered WX playback instead (see the Tail Messages tab).</p>
   </div>
 
   <div class="card" id="tw-schedule-card">
