@@ -46,15 +46,17 @@ General:
   help                                    Show this message
 
 Tail Messages (unkey-triggered rotation):
-  add "<text>" [--name <name>] [--voice <voice>] [--days daily|d1,d2]
+  add "<text>" [--name <name>] [--voice <voice>] [--weight <1-10>] [--days daily|d1,d2]
       [--time-start HH:MM] [--time-end HH:MM] [--node <n>]
                                            Generate TTS announcement and add to rotation
-  add-file <path> [--name <name>] [--days daily|d1,d2] [--time-start HH:MM]
+  add-file <path> [--name <name>] [--weight <1-10>] [--days daily|d1,d2] [--time-start HH:MM]
            [--time-end HH:MM] [--node <n>]
                                            Copy an existing WAV file into rotation
-  edit-rotation <name> [--new-name <n>] [--text "<text>"] [--voice <v>] [--file <path>]
+  edit-rotation <name> [--new-name <n>] [--text "<text>"] [--voice <v>] [--weight <1-10>] [--file <path>]
                 [--days daily|d1,d2] [--time-start HH:MM] [--time-end HH:MM] [--node <n>]
                                            Edit an existing rotation entry
+                                           (--weight: how many times more often than a
+                                           Weight=1 entry this plays, 1-10, default 1)
   reorder-rotation <name> <up|down>       Move a rotation entry earlier/later in the list
   list                                    List rotation + scheduled announcements
   remove <name>                           Remove a rotation file or scheduled announcement
@@ -95,6 +97,7 @@ Scheduled Announcements (clock-triggered):
 
 Settings:
   update-settings [--node <n>] [--debug true|false] [--min-interval <n>]
+                  [--keyup-leadin-ms <n>]
                   [--network-keyup-trigger true|false]
                   [--swp-enable true|false] [--swp-wxfile <path>]
                   [--swp-threshold <n>]
@@ -121,6 +124,7 @@ Time & Weather Announcements (time and/or current conditions, schedule- or DTMF-
                      [--weather-snapshot-enable true|false]
                      [--weather-snapshot-path <path>] [--weather-snapshot-label <text>]
                      [--callsign <text>] [--lookahead-seconds <n>]
+                     [--play-wx-after-announce true|false]
                                            Update Time & Weather Announcements settings
                                            (--mode/--callsign/--lookahead-seconds apply
                                            to Template mode; everything else except
@@ -456,12 +460,13 @@ cmd_remove_voice() {
 
 cmd_add() {
     need_root "$@"
-    local text="" name="" voice="" speed="" days="daily" time_start="" time_end="" node=""
+    local text="" name="" voice="" speed="" weight="" days="daily" time_start="" time_end="" node=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --name)       name="$2";  shift 2 ;;
             --voice)      voice="$2"; shift 2 ;;
             --speed)      speed="$2"; shift 2 ;;
+            --weight)     weight="$2"; shift 2 ;;
             --days)       days="$2";  shift 2 ;;
             --time-start) time_start="$2"; shift 2 ;;
             --time-end)   time_end="$2";   shift 2 ;;
@@ -471,7 +476,7 @@ cmd_add() {
     done
 
     if [[ -z "$text" ]]; then
-        echo "Usage: herald add \"<text>\" [--name <name>] [--voice <voice>] [--speed <0.5-2.0>] [--days daily|d1,d2] [--time-start HH:MM] [--time-end HH:MM] [--node <n>]"
+        echo "Usage: herald add \"<text>\" [--name <name>] [--voice <voice>] [--speed <0.5-2.0>] [--weight <1-10>] [--days daily|d1,d2] [--time-start HH:MM] [--time-end HH:MM] [--node <n>]"
         exit 1
     fi
     [[ -z "$name" ]] && name="$(slugify "$text")"
@@ -482,6 +487,7 @@ cmd_add() {
     local args=(add-rotation "$outfile" --text "$text" --days "$days")
     [[ -n "$voice" ]] && args+=(--voice "$voice")
     [[ -n "$speed" ]] && args+=(--speed "$speed")
+    [[ -n "$weight" ]] && args+=(--weight "$weight")
     [[ -n "$time_start" ]] && args+=(--time-start "$time_start")
     [[ -n "$time_end" ]] && args+=(--time-end "$time_end")
     [[ -n "$node" ]] && args+=(--node "$node")
@@ -491,10 +497,11 @@ cmd_add() {
 
 cmd_add_file() {
     need_root "$@"
-    local src="" name="" days="daily" time_start="" time_end="" node=""
+    local src="" name="" weight="" days="daily" time_start="" time_end="" node=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --name)       name="$2"; shift 2 ;;
+            --weight)     weight="$2"; shift 2 ;;
             --days)       days="$2"; shift 2 ;;
             --time-start) time_start="$2"; shift 2 ;;
             --time-end)   time_end="$2";   shift 2 ;;
@@ -504,7 +511,7 @@ cmd_add_file() {
     done
 
     if [[ -z "$src" ]]; then
-        echo "Usage: herald add-file <path> [--name <name>] [--days daily|d1,d2] [--time-start HH:MM] [--time-end HH:MM] [--node <n>]"
+        echo "Usage: herald add-file <path> [--name <name>] [--weight <1-10>] [--days daily|d1,d2] [--time-start HH:MM] [--time-end HH:MM] [--node <n>]"
         exit 1
     fi
     if [[ ! -f "$src" ]]; then
@@ -519,6 +526,7 @@ cmd_add_file() {
     echo "Copied to: $dest"
 
     local args=(add-rotation "$dest" --days "$days")
+    [[ -n "$weight" ]] && args+=(--weight "$weight")
     [[ -n "$time_start" ]] && args+=(--time-start "$time_start")
     [[ -n "$time_end" ]] && args+=(--time-end "$time_end")
     [[ -n "$node" ]] && args+=(--node "$node")
@@ -528,7 +536,7 @@ cmd_add_file() {
 
 cmd_edit_rotation() {
     need_root "$@"
-    local old_name="" new_name="" text="" voice="" speed="" file="" has_text=false has_file=false
+    local old_name="" new_name="" text="" voice="" speed="" weight="" file="" has_text=false has_file=false
     local days="" time_start="" time_end="" node=""
     local has_days=false has_time_start=false has_time_end=false has_node=false
     while [[ $# -gt 0 ]]; do
@@ -537,6 +545,7 @@ cmd_edit_rotation() {
             --text)       text="$2"; has_text=true; shift 2 ;;
             --voice)      voice="$2"; shift 2 ;;
             --speed)      speed="$2"; shift 2 ;;
+            --weight)     weight="$2"; shift 2 ;;
             --file)       file="$2"; has_file=true; shift 2 ;;
             --days)       days="$2"; has_days=true; shift 2 ;;
             --time-start) time_start="$2"; has_time_start=true; shift 2 ;;
@@ -547,7 +556,7 @@ cmd_edit_rotation() {
     done
 
     if [[ -z "$old_name" ]]; then
-        echo 'Usage: herald edit-rotation <name> [--new-name <n>] [--text "<text>"] [--voice <v>] [--speed <0.5-2.0>] [--file <path>] [--days daily|d1,d2] [--time-start HH:MM] [--time-end HH:MM] [--node <n>]'
+        echo 'Usage: herald edit-rotation <name> [--new-name <n>] [--text "<text>"] [--voice <v>] [--speed <0.5-2.0>] [--weight <1-10>] [--file <path>] [--days daily|d1,d2] [--time-start HH:MM] [--time-end HH:MM] [--node <n>]'
         exit 1
     fi
     [[ -z "$new_name" ]] && new_name="$old_name"
@@ -581,6 +590,7 @@ cmd_edit_rotation() {
     $has_text && args+=(--text "$text")
     [[ -n "$voice" ]] && args+=(--voice "$voice")
     [[ -n "$speed" ]] && args+=(--speed "$speed")
+    [[ -n "$weight" ]] && args+=(--weight "$weight")
     $has_days       && args+=(--days "$days")
     $has_time_start && args+=(--time-start "$time_start")
     $has_time_end   && args+=(--time-end "$time_end")

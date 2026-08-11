@@ -7,9 +7,13 @@ $days       = $_POST['days'] ?? 'daily';
 $time_start = trim($_POST['time_start'] ?? '');
 $time_end   = trim($_POST['time_end'] ?? '');
 $node       = trim($_POST['node'] ?? '');
+$weight     = trim($_POST['weight'] ?? '');
 
 if (!herald_valid_name($name)) {
     herald_json_response(['success' => false, 'message' => 'Invalid or missing name'], 400);
+}
+if ($weight !== '' && (!ctype_digit($weight) || (int) $weight < 1 || (int) $weight > 10)) {
+    herald_json_response(['success' => false, 'message' => 'Weight must be 1-10'], 400);
 }
 // days: "daily" or comma-separated day names - validated loosely here, the
 // daemon's own YAML load treats unrecognized values as never-matching.
@@ -30,6 +34,7 @@ $gating_args = ['--days', $days];
 if ($time_start !== '') { $gating_args[] = '--time-start'; $gating_args[] = $time_start; }
 if ($time_end   !== '') { $gating_args[] = '--time-end';   $gating_args[] = $time_end; }
 if ($node       !== '') { $gating_args[] = '--node';       $gating_args[] = $node; }
+if ($weight     !== '') { $gating_args[] = '--weight';     $gating_args[] = $weight; }
 
 if ($mode === 'tts') {
     $text  = trim($_POST['text'] ?? '');

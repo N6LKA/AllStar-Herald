@@ -514,6 +514,32 @@ if [[ -f "$CONFIG_DIR/herald.conf" ]] && \
     info "  Old value backed up in herald.conf.bak.*  — restart/reload picks up the new path below."
 fi
 
+# Add KeyupLeadInMs (new in 1.32.0) to any existing config that predates it -
+# a code-only upgrade wouldn't otherwise add it, so the daemon's own default
+# (500ms) would silently apply in memory without ever being visible or
+# documented in the actual config file on disk. Idempotent: only touches the
+# file if the key is genuinely missing (a fresh install already has it via
+# herald.conf.example above, so this naturally no-ops there).
+if [[ -f "$CONFIG_DIR/herald.conf" ]] && \
+   ! grep -qE '^KeyupLeadInMs:' "$CONFIG_DIR/herald.conf"; then
+    info "Adding KeyupLeadInMs (new in 1.32.0, default 500ms) to existing config ..."
+    cp "$CONFIG_DIR/herald.conf" "$CONFIG_DIR/herald.conf.bak.$(date +%Y%m%d-%H%M%S)"
+    KEYUP_BLOCK="$(mktemp)"
+    cat > "$KEYUP_BLOCK" <<'BLOCK'
+
+# Short silent pause played before every announcement (Tail Messages,
+# Scheduled, Time & Weather, Node ID — everything), giving the transmitter
+# and downstream radios a moment to key up and settle before the real audio
+# starts. Without it, the first word or two can get clipped.
+# In MILLISECONDS — e.g. 500 = half a second, 1000 = a full second.
+# Set to 0 to disable entirely.
+KeyupLeadInMs: 500
+BLOCK
+    sed -i "/^Debug:/r $KEYUP_BLOCK" "$CONFIG_DIR/herald.conf"
+    rm -f "$KEYUP_BLOCK"
+    info "  Added with default 500ms — edit $CONFIG_DIR/herald.conf, or use the web UI's Global Settings tab, to change it."
+fi
+
 # ── systemd service ────────────────────────────────────────────────────────────
 
 info "Installing systemd service ..."

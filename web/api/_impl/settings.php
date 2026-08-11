@@ -19,6 +19,11 @@ if ($node === '' || !preg_match('/^[a-zA-Z0-9]{1,20}$/', $node)) {
 
 $debug = ($input['debug'] ?? false) ? 'true' : 'false';
 
+$keyupLeadinMs = filter_var($input['keyup_leadin_ms'] ?? 0, FILTER_VALIDATE_INT);
+if ($keyupLeadinMs === false || $keyupLeadinMs < 0 || $keyupLeadinMs > 10000) {
+    herald_json_response(['success' => false, 'message' => 'Invalid keyup lead-in (must be 0-10000ms)'], 400);
+}
+
 $minInterval = filter_var($input['min_interval'] ?? null, FILTER_VALIDATE_INT);
 if ($minInterval === false || $minInterval < 0) {
     herald_json_response(['success' => false, 'message' => 'Invalid min interval'], 400);
@@ -54,6 +59,7 @@ herald_respond_from_cli(herald_run_sudo([
     'update-settings',
     '--node', $node,
     '--debug', $debug,
+    '--keyup-leadin-ms', (string) $keyupLeadinMs,
     '--min-interval', (string) $minInterval,
     '--network-keyup-trigger', $networkKeyupTrigger,
     '--swp-enable', $swpEnable,

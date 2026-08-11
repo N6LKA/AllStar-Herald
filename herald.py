@@ -81,6 +81,16 @@ TW_COORD_CACHE  = os.path.join(INSTALL_DIR, "timeweather-coords.cache")
 # by build_timeweather_audio() since /run's own contents don't survive a
 # reboot either.
 TW_TEMP_OUTDIR  = "/run/herald/timeweather-tmp"
+
+# Global Keyup Lead-In: a short cached silence file played immediately
+# before every real announcement, giving the transmitter (and downstream
+# receivers) time to key up and settle before real audio starts - without
+# this, the first word or two of a message can get clipped. Same /run
+# reasoning as TW_TEMP_OUTDIR above (not /tmp, PrivateTmp isolation).
+# Regenerated only when the configured duration actually changes (see
+# ensure_keyup_leadin_file()), not on every single play.
+KEYUP_LEADIN_FILE = "/run/herald/keyup-lead-in.wav"
+DEFAULT_KEYUP_LEADIN_MS = 500  # half a second - matches what older tail-message tools typically used
 DEFAULT_TW_CRON = "0 * * * *"
 DEFAULT_TW_WEATHER_CACHE_MIN = 10
 DEFAULT_TW_MODE = "recordings"
@@ -502,6 +512,8 @@ def load_state():
         "timeweather_played": None,
         "timeweather_pending": False,
         "timeweather_busy_until": 0.0,
+        "timeweather_wx_pending": False,
+        "timeweather_wx_busy_until": 0.0,
         "timeweather_weather_cache": None,
         "timeweather_tempest_station": None,
         "timeweather_template_last_id": None,
@@ -578,9 +590,43 @@ def audio_duration(filepath):
     except Exception:
         return None
 
+_keyup_leadin_ms = 0  # Global Keyup Lead-In setting, refreshed by main() on
+                      # load/SIGHUP reload - see ensure_keyup_leadin_file() and
+                      # play_file() below.
+_keyup_leadin_cached_ms = None  # duration KEYUP_LEADIN_FILE was actually built
+                                 # for, so it's only regenerated when it changes
+
+def ensure_keyup_leadin_file(lead_in_ms):
+    """(Re)generates the cached lead-in silence WAV via sox if the configured
+    duration has changed since it was last built (or the file went missing).
+    No-op if lead_in_ms <= 0. sox's null input ("-n") is an infinite stream
+    of silence at the given format - trim just takes the first N seconds of
+    it, so this produces true silence, not a synthesized tone."""
+    global _keyup_leadin_cached_ms
+    if lead_in_ms <= 0:
+        return
+    if _keyup_leadin_cached_ms == lead_in_ms and os.path.exists(KEYUP_LEADIN_FILE):
+        return
+    os.makedirs(os.path.dirname(KEYUP_LEADIN_FILE), exist_ok=True)
+    seconds = lead_in_ms / 1000.0
+    try:
+        subprocess.run(
+            ["sox", "-n", "-r", "8000", "-c", "1", KEYUP_LEADIN_FILE, "trim", "0.0", str(seconds)],
+            capture_output=True, timeout=10, check=True,
+        )
+        _keyup_leadin_cached_ms = lead_in_ms
+    except Exception as e:
+        log_warn(f"Could not generate keyup lead-in silence file: {e}")
+
 def play_file(node, filepath, play_mode="local"):
     path_no_ext = str(Path(filepath).with_suffix(""))
     cmd = "rpt playback" if play_mode == "global" else "rpt localplay"
+    if _keyup_leadin_ms > 0:
+        ensure_keyup_leadin_file(_keyup_leadin_ms)
+        if os.path.exists(KEYUP_LEADIN_FILE):
+            leadin_no_ext = str(Path(KEYUP_LEADIN_FILE).with_suffix(""))
+            asterisk_cmd(f"{cmd} {node} {leadin_no_ext}")
+            time.sleep(_keyup_leadin_ms / 1000.0)
     log_info(f"Playing ({play_mode}): {Path(filepath).name} on node {node}")
     asterisk_cmd(f"{cmd} {node} {path_no_ext}")
 
@@ -734,6 +780,44 @@ def rotation_entry_eligible(entry, now):
 def rotation_entry_node(entry, node):
     entry_node = entry.get("Node") if isinstance(entry, dict) else None
     return str(entry_node) if entry_node else node
+
+MIN_ROTATION_WEIGHT = 1
+MAX_ROTATION_WEIGHT = 10
+
+def clamp_rotation_weight(weight):
+    try:
+        weight = int(weight)
+    except (TypeError, ValueError):
+        return MIN_ROTATION_WEIGHT
+    return max(MIN_ROTATION_WEIGHT, min(MAX_ROTATION_WEIGHT, weight))
+
+def rotation_entry_weight(entry):
+    if isinstance(entry, str):
+        return MIN_ROTATION_WEIGHT
+    return clamp_rotation_weight(entry.get("Weight", MIN_ROTATION_WEIGHT))
+
+def weighted_eligible_rotation(rotation, now):
+    """Eligible entries (day/time/Enabled gating, same as before), expanded
+    by Weight into an interleaved round-robin list - an entry with Weight=3
+    appears three times per full cycle, spread one-per-round across the
+    cycle (never three plays in a row just because its turn came up), so it
+    comes up 3x as often as a Weight=1 entry over time without bunching up.
+    The exact same rotation_index-modulo selection logic already used
+    everywhere rotation is played still applies unchanged - only the shape
+    of the list it indexes into has changed. Weight defaults to 1 for
+    legacy string entries and any dict entry that doesn't set it, so with
+    every entry at the default weight this returns exactly what the old
+    unweighted eligible-list-only logic did."""
+    eligible = [e for e in rotation if rotation_entry_eligible(e, now)]
+    if not eligible:
+        return []
+    weights = [rotation_entry_weight(e) for e in eligible]
+    out = []
+    for round_num in range(max(weights)):
+        for e, w in zip(eligible, weights):
+            if w > round_num:
+                out.append(e)
+    return out
 
 def log_playback(state, entry_type, name, filepath, node, play_mode="local"):
     history = state.setdefault("playback_history", [])
@@ -2141,6 +2225,17 @@ def play_timeweather(tw_cfg, state, node, now, now_dt, mode="scheduled", warning
         minute_key = now_dt.strftime("%Y-%m-%d %H:%M")
         fresh_state["timeweather_played"] = minute_key
         fresh_state["timeweather_pending"] = False
+        # Opt-in follow-up (PlayWxAlertAfterAnnounce): flag it here, but the
+        # actual "is there an alert to play" check happens later in the main
+        # loop once timeweather_busy_until elapses (see the dedicated block
+        # right after the Time & Weather section) - this function has no
+        # access to swp_on/swp_file/swp_thr, and checking "is there an active
+        # alert" now would race with SkywarnPlus-NG's own poll cadence anyway.
+        # Scoped to real hourly occurrences only, not DTMF/test previews - a
+        # manual on-demand time check via DTMF shouldn't also force an
+        # unrelated WX alert to play.
+        if tw_cfg.get("PlayWxAlertAfterAnnounce", False):
+            fresh_state["timeweather_wx_pending"] = True
     save_state(fresh_state)
     # Keep the caller's own `state` object (the daemon's long-lived instance,
     # in the "scheduled" path) in sync with what was actually just persisted.
@@ -2350,6 +2445,7 @@ def process_timeweather_test_request(tw_cfg, state, node):
 def extract_config(config):
     node  = str(config.get("Node", "")).strip()
     debug = config.get("Debug", False)
+    keyup_leadin_ms = int(config.get("KeyupLeadInMs", DEFAULT_KEYUP_LEADIN_MS) or 0)
 
     tm       = config.get("TailMessage", {}) or {}
     tm_on    = tm.get("Enable", True)
@@ -2377,6 +2473,7 @@ def extract_config(config):
     return {
         "node":            node,
         "debug":           debug,
+        "keyup_leadin_ms": keyup_leadin_ms,
         "tm_on":           tm_on,
         "min_int":         min_int,
         "rotation":        rotation,
@@ -2774,7 +2871,7 @@ def normalize_rotation(rotation):
         if isinstance(e, str):
             entry = {"File": e, "Text": None, "Voice": None, "Speed": DEFAULT_TTS_SPEED,
                       "Days": "daily", "TimeStart": None, "TimeEnd": None, "Node": None,
-                      "Enabled": True}
+                      "Enabled": True, "Weight": MIN_ROTATION_WEIGHT}
         else:
             entry = {
                 "File": e.get("File", ""),
@@ -2786,6 +2883,7 @@ def normalize_rotation(rotation):
                 "TimeEnd": e.get("TimeEnd"),
                 "Node": e.get("Node"),
                 "Enabled": e.get("Enabled", True),
+                "Weight": rotation_entry_weight(e),
             }
         entry["FileMissing"] = not (entry["File"] and os.path.exists(entry["File"]))
         out.append(entry)
@@ -2843,6 +2941,7 @@ def cmd_list_json(config):
     out = {
         "node":    cfg["node"],
         "debug":   cfg["debug"],
+        "keyup_leadin_ms": cfg["keyup_leadin_ms"],
         "herald_enabled": not os.path.exists(DISABLE_FLAG),
         "version": VERSION,
         "ami_connected": _ami_up,
@@ -2878,6 +2977,8 @@ def cmd_add_rotation(config, args):
     entry = {"File": filepath, "Text": args.text, "Voice": args.voice}
     if args.speed is not None:
         entry["Speed"] = clamp_tts_speed(args.speed)
+    if args.weight is not None:
+        entry["Weight"] = clamp_rotation_weight(args.weight)
     if args.days and args.days != "daily":
         entry["Days"] = [d.strip().lower() for d in args.days.split(",")]
     if args.time_start:
@@ -2919,6 +3020,8 @@ def cmd_edit_rotation(config, args):
         entry["Voice"] = args.voice
     if args.speed is not None:
         entry["Speed"] = clamp_tts_speed(args.speed)
+    if args.weight is not None:
+        entry["Weight"] = clamp_rotation_weight(args.weight)
     if args.days is not None:
         if args.days == "daily" or args.days == "":
             entry.pop("Days", None)
@@ -3202,6 +3305,8 @@ def cmd_update_settings(config, args):
         config["Node"] = args.node
     if args.debug is not None:
         config["Debug"] = (args.debug == "true")
+    if args.keyup_leadin_ms is not None:
+        config["KeyupLeadInMs"] = args.keyup_leadin_ms
 
     tm = config.setdefault("TailMessage", {})
     if args.min_interval is not None:
@@ -3244,6 +3349,8 @@ def cmd_update_timeweather(config, args):
         tw["Mode"] = args.mode
     if args.cron is not None:
         tw.setdefault("Schedule", {})["Cron"] = args.cron
+    if args.play_wx_after_announce is not None:
+        tw["PlayWxAlertAfterAnnounce"] = (args.play_wx_after_announce == "true")
 
     tpl = tw.setdefault("Templates", {})
     if args.callsign is not None:
@@ -3456,6 +3563,7 @@ def build_arg_parser():
     p_add_rot.add_argument("--text", default=None)
     p_add_rot.add_argument("--voice", default=None)
     p_add_rot.add_argument("--speed", type=float, default=None)
+    p_add_rot.add_argument("--weight", type=int, default=None)
     p_add_rot.add_argument("--days", default="daily")
     p_add_rot.add_argument("--time-start", dest="time_start", default=None)
     p_add_rot.add_argument("--time-end", dest="time_end", default=None)
@@ -3467,6 +3575,7 @@ def build_arg_parser():
     p_edit_rot.add_argument("--text", default=None)
     p_edit_rot.add_argument("--voice", default=None)
     p_edit_rot.add_argument("--speed", type=float, default=None)
+    p_edit_rot.add_argument("--weight", type=int, default=None)
     p_edit_rot.add_argument("--file", default=None)
     p_edit_rot.add_argument("--days", default=None)
     p_edit_rot.add_argument("--time-start", dest="time_start", default=None)
@@ -3526,6 +3635,7 @@ def build_arg_parser():
     p_settings = sub.add_parser("update-settings", help="Update general daemon settings")
     p_settings.add_argument("--node")
     p_settings.add_argument("--debug", choices=["true", "false"])
+    p_settings.add_argument("--keyup-leadin-ms", dest="keyup_leadin_ms", type=int)
     p_settings.add_argument("--min-interval", dest="min_interval", type=int)
     p_settings.add_argument("--network-keyup-trigger", dest="network_keyup_trigger", choices=["true", "false"])
     p_settings.add_argument("--swp-enable",    dest="swp_enable",    choices=["true", "false"])
@@ -3577,6 +3687,7 @@ def build_arg_parser():
     p_tw.add_argument("--weather-snapshot-label", dest="weather_snapshot_label")
     p_tw.add_argument("--callsign")
     p_tw.add_argument("--lookahead-seconds", dest="lookahead_seconds", type=int)
+    p_tw.add_argument("--play-wx-after-announce", dest="play_wx_after_announce", choices=["true", "false"])
 
     p_tw_test = sub.add_parser("test-timeweather", help="Preview the Time & Weather Announcement (doesn't affect scheduling; use play-timeweather for DTMF)")
     p_tw_test.add_argument("--at", default=None,
@@ -3717,7 +3828,7 @@ def _poll_ami(ami, node):
     return _ami_rx_keyed, _ami_conn_keyed
 
 def main():
-    global DEBUG, _ami_up, _ami_rx_keyed, _ami_conn_keyed
+    global DEBUG, _ami_up, _ami_rx_keyed, _ami_conn_keyed, _keyup_leadin_ms
 
     log_info(f"herald v{VERSION} starting")
 
@@ -3726,6 +3837,7 @@ def main():
 
     node            = cfg["node"]
     DEBUG           = cfg["debug"]
+    _keyup_leadin_ms = cfg["keyup_leadin_ms"]
     tm_on           = cfg["tm_on"]
     min_int         = cfg["min_int"]
     rotation        = cfg["rotation"]
@@ -3820,6 +3932,7 @@ def main():
                 cfg    = extract_config(config)
                 node            = cfg["node"]
                 DEBUG           = cfg["debug"]
+                _keyup_leadin_ms = cfg["keyup_leadin_ms"]
                 tm_on           = cfg["tm_on"]
                 min_int         = cfg["min_int"]
                 rotation        = cfg["rotation"]
@@ -3959,6 +4072,41 @@ def main():
             elif should_play_timeweather(timeweather, state, node, now_dt):
                 play_timeweather(timeweather, state, node, now, now_dt)
 
+            # ── Time & Weather → forced WX alert follow-up (opt-in, self-timed) ─
+            # PlayWxAlertAfterAnnounce: once the just-played Time & Weather
+            # announcement has finished (timeweather_busy_until elapsed),
+            # force-play the current SkywarnPlus/-NG alert if one is active -
+            # deliberately not queued back-to-back with the announcement
+            # itself (that would require blocking the main loop, or trusting
+            # Asterisk to queue two localplay commands cleanly). Marks the
+            # alert as "already announced" (swp_last_mtime/swp_next_is_rotation)
+            # and opens timeweather_wx_busy_until so the reactive Tail Message
+            # block below defers instead of replaying the same alert off of
+            # its own NetworkKeyupTrigger cascade (see the tail-message gate
+            # further down). If no alert is active by the time this fires,
+            # this is a no-op - normal tail-message behavior (including
+            # whatever the NetworkKeyupTrigger cascade already does today)
+            # proceeds untouched, exactly as when the toggle is off.
+            if state.get("timeweather_wx_pending") and now >= state.get("timeweather_busy_until", 0):
+                state["timeweather_wx_pending"] = False
+                if swp_on and wx_is_active(swp_file, swp_thr):
+                    log_info("Playing SkywarnPlus WX alert after Time & Weather announcement")
+                    play_file(node, swp_file)
+                    log_playback(state, "wx", "SkywarnPlus WX Alert (after Time & Weather)", swp_file, node)
+                    if swp_ng_on:
+                        swp_mtime = state.get("swp_ng_last_change")
+                    else:
+                        try:
+                            swp_mtime = os.path.getmtime(swp_file)
+                        except OSError:
+                            swp_mtime = None
+                    state["swp_last_mtime"]       = swp_mtime
+                    state["swp_next_is_rotation"] = True
+                    state["last_tail_played"]     = now
+                    wx_duration = audio_duration(swp_file) or DEFAULT_ANNOUNCEMENT_DURATION
+                    state["timeweather_wx_busy_until"] = now + min(wx_duration, MAX_BUSY_SECONDS) + BUSY_GRACE_SECONDS
+                save_state(state)
+
             # ── Scheduled announcements (time-driven) ─────────────────────
             for sched in scheduled:
                 if should_play_scheduled(sched, state, node, now_dt):
@@ -3988,6 +4136,9 @@ def main():
                 elif now < state.get("scheduled_busy_until", 0):
                     log_info("Scheduled announcement in progress - delaying tail message to next unkey")
 
+                elif now < state.get("timeweather_wx_busy_until", 0):
+                    log_info("WX alert just played after Time & Weather - delaying tail message to next unkey")
+
                 elif swp_active:
                     if swp_ng_on:
                         # NG rewrites its tail file on every poll cycle even
@@ -4013,7 +4164,7 @@ def main():
                         save_state(state)
 
                     elif rotation and state.get("swp_next_is_rotation"):
-                        eligible = [e for e in rotation if rotation_entry_eligible(e, now_dt)]
+                        eligible = weighted_eligible_rotation(rotation, now_dt)
                         if eligible:
                             idx      = state["rotation_index"] % len(eligible)
                             entry    = eligible[idx]
@@ -4049,7 +4200,7 @@ def main():
                         save_state(state)
 
                 elif rotation:
-                    eligible = [e for e in rotation if rotation_entry_eligible(e, now_dt)]
+                    eligible = weighted_eligible_rotation(rotation, now_dt)
                     if eligible:
                         idx      = state["rotation_index"] % len(eligible)
                         entry    = eligible[idx]

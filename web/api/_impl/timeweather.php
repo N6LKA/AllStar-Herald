@@ -109,6 +109,8 @@ if ($lookaheadSeconds === false || $lookaheadSeconds < 1 || $lookaheadSeconds > 
     herald_json_response(['success' => false, 'message' => 'Invalid lookahead seconds (must be 1-60)'], 400);
 }
 
+$playWxAfterAnnounce = ($input['play_wx_after_announce'] ?? false) ? 'true' : 'false';
+
 herald_respond_from_cli(herald_run_sudo([
     'update-timeweather',
     '--enable', $enable,
@@ -136,4 +138,5 @@ herald_respond_from_cli(herald_run_sudo([
     '--weather-snapshot-label', $weatherSnapshotLabel,
     '--callsign', $callsign,
     '--lookahead-seconds', (string) $lookaheadSeconds,
+    '--play-wx-after-announce', $playWxAfterAnnounce,
 ]));

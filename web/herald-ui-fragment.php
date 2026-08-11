@@ -363,7 +363,7 @@
     <h3>Tail Message Rotation</h3>
     <p class="muted">Plays on the next transmission unkey, gated by MinInterval. A SkywarnPlus WX alert always takes priority over the rotation.</p>
     <table id="tail-table">
-      <thead><tr><th>#</th><th>File</th><th>Voice</th><th>Speed</th><th>Days</th><th>Window</th><th>Node</th><th>Status</th><th>Actions</th></tr></thead>
+      <thead><tr><th>#</th><th>File</th><th>Voice</th><th>Speed</th><th>Days</th><th>Window</th><th>Weight</th><th>Node</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody></tbody>
     </table>
 
@@ -396,6 +396,11 @@
         <div>
           <label>Node Override (optional)</label>
           <input type="text" id="tail-node" style="width: 120px;" placeholder="e.g. 501261">
+        </div>
+        <div>
+          <label>Weight (optional)</label>
+          <input type="text" id="tail-weight" style="width: 70px;" placeholder="1" inputmode="numeric" pattern="[0-9]*">
+          <p class="muted" style="font-size:0.8em; margin:4px 0 0; max-width:160px;">How many times more often than a Weight 1 entry this plays. 1-10, default 1.</p>
         </div>
       </div>
 
@@ -890,6 +895,15 @@
       </div>
     </div>
     <p class="muted" style="margin-top:10px; margin-bottom:0; font-size:0.9em;">Writes the same weather data used above (no extra fetch) to a small JSON file — for example, for <a href="https://github.com/N6LKA/ASL3-SkywarnPlus-NG-Bridge" target="_blank">ASL3-SkywarnPlus-NG-Bridge</a>'s Allmon3 panel. Checked once a minute.</p>
+
+    <div class="toggle-row" style="margin-top: 14px;">
+      <label class="toggle-switch">
+        <input type="checkbox" id="tw-play-wx-after-announce">
+        <span class="toggle-slider"></span>
+      </label>
+      <span class="toggle-label">Play WX Alert from SkywarnPlus after this announcement</span>
+    </div>
+    <p class="muted" style="margin-top:6px; margin-bottom:0; font-size:0.9em;">If a SkywarnPlus/-NG alert is currently active, play it immediately after every scheduled Time &amp; Weather announcement finishes — regardless of repeater activity. While it's playing, the normal Tail Message system holds off so the alert isn't announced twice in a row. Leave this off to rely on the Tail Message system's own unkey-triggered WX playback instead (see the Tail Messages tab).</p>
   </div>
 
   <div class="card" id="tw-schedule-card">
@@ -1049,8 +1063,18 @@
 
     <div class="card">
       <h3 style="margin-top:0;">General Settings</h3>
-      <label>Node</label>
-      <input type="text" id="set-node" style="width: 200px;">
+      <div class="field-row">
+        <div>
+          <label>Node</label>
+          <input type="text" id="set-node" style="width: 200px;">
+        </div>
+        <div>
+          <label>Global Keyup Lead-In</label>
+          <input type="text" id="set-keyup-leadin-ms" style="width: 100px;" placeholder="e.g. 500" inputmode="numeric" pattern="[0-9]*">
+          <span class="muted" style="margin-left:6px;">milliseconds</span>
+        </div>
+        <p class="muted" style="flex:1 1 320px; min-width:260px; margin:0; font-size:0.9em;">A short silent pause played before every announcement (Tail Messages, Scheduled, Time &amp; Weather, Node ID — everything), giving the transmitter and downstream radios a moment to key up and settle before the real audio starts. Without it, the first word or two can get clipped. Value is in <strong>milliseconds</strong> (thousandths of a second) — e.g. <code>500</code> = half a second, <code>1000</code> = a full second. Default is <code>500</code>; set to <code>0</code> to disable entirely.</p>
+      </div>
 
       <div class="toggle-row" style="margin-top: 16px;">
         <label class="toggle-switch">
