@@ -406,7 +406,7 @@
       if (!enabled) tr.classList.add('sched-disabled');
       tr.innerHTML = '<td>' + (i + 1) + '</td><td class="col-wrap">' + basename(file) + (fileMissing ? ' <span class="badge-missing">MISSING FILE</span>' : '') + '</td>' +
         '<td>' + voiceDisplay + '</td><td>' + speedDisplay + '</td><td>' + daysDisplay + '</td>' +
-        '<td>' + windowDisplay + '</td><td>' + (node || defaultNode) + '</td><td>' + weight + '</td>' +
+        '<td>' + windowDisplay + '</td><td>' + weight + '</td><td>' + (node || defaultNode) + '</td>' +
         '<td><button class="' + (enabled ? 'btn-enable' : 'btn-disable') + ' btn-toggle-rot" data-name="' + escapeAttr(name) + '">' + (enabled ? 'Enabled' : 'Disabled') + '</button></td>' +
         '<td>' +
         '<button class="btn-reorder" data-name="' + name + '" data-direction="up" title="Move up"' + (canMoveUp ? '' : ' disabled') + '>&uarr;</button>' +
