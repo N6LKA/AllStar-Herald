@@ -364,7 +364,7 @@
     document.getElementById('set-herald-version').textContent = data.version || 'unknown';
 
     document.getElementById('set-node').value = data.node || '';
-    document.getElementById('set-keyup-leadin-ms').value = data.keyup_leadin_ms || 0;
+    document.getElementById('set-keyup-leadin-ms').value = data.keyup_leadin_ms ?? 500;
     document.getElementById('set-min-interval').value = data.tail_message.min_interval;
     document.getElementById('set-debug').checked = !!data.debug;
     document.getElementById('set-network-keyup-trigger').checked = !!data.tail_message.network_keyup_trigger;

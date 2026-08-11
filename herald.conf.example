@@ -8,6 +8,14 @@ Node: ""
 # Enable debug logging (set true only for troubleshooting)
 Debug: false
 
+# Short silent pause played before every announcement (Tail Messages,
+# Scheduled, Time & Weather, Node ID — everything), giving the transmitter
+# and downstream radios a moment to key up and settle before the real audio
+# starts. Without it, the first word or two can get clipped.
+# In MILLISECONDS — e.g. 500 = half a second, 1000 = a full second.
+# Set to 0 to disable entirely.
+KeyupLeadInMs: 500
+
 # ── Asterisk Manager Interface (AMI) ──────────────────────────────────────────
 # AMI enables real-time, low-latency unkey detection and network keyup support.
 # The connection is local-only (127.0.0.1) — no internet access involved.

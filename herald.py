@@ -90,6 +90,7 @@ TW_TEMP_OUTDIR  = "/run/herald/timeweather-tmp"
 # Regenerated only when the configured duration actually changes (see
 # ensure_keyup_leadin_file()), not on every single play.
 KEYUP_LEADIN_FILE = "/run/herald/keyup-lead-in.wav"
+DEFAULT_KEYUP_LEADIN_MS = 500  # half a second - matches what older tail-message tools typically used
 DEFAULT_TW_CRON = "0 * * * *"
 DEFAULT_TW_WEATHER_CACHE_MIN = 10
 DEFAULT_TW_MODE = "recordings"
@@ -2406,7 +2407,7 @@ def process_timeweather_test_request(tw_cfg, state, node):
 def extract_config(config):
     node  = str(config.get("Node", "")).strip()
     debug = config.get("Debug", False)
-    keyup_leadin_ms = int(config.get("KeyupLeadInMs", 0) or 0)
+    keyup_leadin_ms = int(config.get("KeyupLeadInMs", DEFAULT_KEYUP_LEADIN_MS) or 0)
 
     tm       = config.get("TailMessage", {}) or {}
     tm_on    = tm.get("Enable", True)
