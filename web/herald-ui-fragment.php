@@ -363,7 +363,7 @@
     <h3>Tail Message Rotation</h3>
     <p class="muted">Plays on the next transmission unkey, gated by MinInterval. A SkywarnPlus WX alert always takes priority over the rotation.</p>
     <table id="tail-table">
-      <thead><tr><th>#</th><th>File</th><th>Voice</th><th>Speed</th><th>Days</th><th>Window</th><th>Node</th><th>Status</th><th>Actions</th></tr></thead>
+      <thead><tr><th>#</th><th>File</th><th>Voice</th><th>Speed</th><th>Days</th><th>Window</th><th>Node</th><th>Weight</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody></tbody>
     </table>
 
@@ -396,6 +396,11 @@
         <div>
           <label>Node Override (optional)</label>
           <input type="text" id="tail-node" style="width: 120px;" placeholder="e.g. 501261">
+        </div>
+        <div>
+          <label>Weight (optional)</label>
+          <input type="text" id="tail-weight" style="width: 70px;" placeholder="1" inputmode="numeric" pattern="[0-9]*">
+          <p class="muted" style="font-size:0.8em; margin:4px 0 0; max-width:160px;">How many times more often than a Weight 1 entry this plays. 1-10, default 1.</p>
         </div>
       </div>
 

@@ -8,9 +8,13 @@ $days       = $_POST['days'] ?? 'daily';
 $time_start = trim($_POST['time_start'] ?? '');
 $time_end   = trim($_POST['time_end'] ?? '');
 $node       = trim($_POST['node'] ?? '');
+$weight     = trim($_POST['weight'] ?? '');
 
 if (!herald_valid_name($old_name) || !herald_valid_name($name)) {
     herald_json_response(['success' => false, 'message' => 'Invalid or missing name'], 400);
+}
+if ($weight !== '' && (!ctype_digit($weight) || (int) $weight < 1 || (int) $weight > 10)) {
+    herald_json_response(['success' => false, 'message' => 'Weight must be 1-10'], 400);
 }
 if (!preg_match('/^[a-z,]+$/', $days)) {
     herald_json_response(['success' => false, 'message' => 'Invalid days value'], 400);
@@ -43,10 +47,12 @@ if ($mode === 'tts') {
     $args = array_merge(['edit-rotation', $old_name, '--new-name', $name, '--text', $text], $gating_args);
     if ($voice !== '') { $args[] = '--voice'; $args[] = $voice; }
     if ($speed !== '') { $args[] = '--speed'; $args[] = $speed; }
+    if ($weight !== '') { $args[] = '--weight'; $args[] = $weight; }
     herald_respond_from_cli(herald_run_sudo($args));
 
 } elseif ($mode === 'file') {
     $args = array_merge(['edit-rotation', $old_name, '--new-name', $name], $gating_args);
+    if ($weight !== '') { $args[] = '--weight'; $args[] = $weight; }
     $converted = null;
     // A new file is optional here: with no upload, the existing audio is
     // kept and only the name (and thus the underlying filename) changes.

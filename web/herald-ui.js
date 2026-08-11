@@ -391,6 +391,7 @@
       const timeStart = isObj ? entry.TimeStart : null;
       const timeEnd = isObj ? entry.TimeEnd : null;
       const node = isObj ? entry.Node : null;
+      const weight = isObj ? (entry.Weight || 1) : 1;
       const enabled = isObj ? (entry.Enabled !== false) : true;
       const fileMissing = isObj && !!entry.FileMissing;
       const daysAttr = Array.isArray(days) ? days.join(',') : (days || 'daily');
@@ -405,13 +406,13 @@
       if (!enabled) tr.classList.add('sched-disabled');
       tr.innerHTML = '<td>' + (i + 1) + '</td><td class="col-wrap">' + basename(file) + (fileMissing ? ' <span class="badge-missing">MISSING FILE</span>' : '') + '</td>' +
         '<td>' + voiceDisplay + '</td><td>' + speedDisplay + '</td><td>' + daysDisplay + '</td>' +
-        '<td>' + windowDisplay + '</td><td>' + (node || defaultNode) + '</td>' +
+        '<td>' + windowDisplay + '</td><td>' + (node || defaultNode) + '</td><td>' + weight + '</td>' +
         '<td><button class="' + (enabled ? 'btn-enable' : 'btn-disable') + ' btn-toggle-rot" data-name="' + escapeAttr(name) + '">' + (enabled ? 'Enabled' : 'Disabled') + '</button></td>' +
         '<td>' +
         '<button class="btn-reorder" data-name="' + name + '" data-direction="up" title="Move up"' + (canMoveUp ? '' : ' disabled') + '>&uarr;</button>' +
         '<button class="btn-reorder" data-name="' + name + '" data-direction="down" title="Move down"' + (canMoveDown ? '' : ' disabled') + '>&darr;</button>' +
         '<button class="btn-play" data-type="tail" data-name="' + name + '">Test (local playback)</button>' +
-        '<button class="btn-edit" data-type="tail" data-name="' + name + '" data-text="' + escapeAttr(text) + '" data-voice="' + escapeAttr(voice) + '" data-speed="' + escapeAttr(speed) + '" data-days="' + escapeAttr(daysAttr) + '" data-time-start="' + escapeAttr(timeStart) + '" data-time-end="' + escapeAttr(timeEnd) + '" data-node="' + escapeAttr(node) + '">Edit</button>' +
+        '<button class="btn-edit" data-type="tail" data-name="' + name + '" data-text="' + escapeAttr(text) + '" data-voice="' + escapeAttr(voice) + '" data-speed="' + escapeAttr(speed) + '" data-days="' + escapeAttr(daysAttr) + '" data-time-start="' + escapeAttr(timeStart) + '" data-time-end="' + escapeAttr(timeEnd) + '" data-node="' + escapeAttr(node) + '" data-weight="' + escapeAttr(weight) + '">Edit</button>' +
         '<button class="btn-danger" data-type="tail" data-name="' + name + '">Remove</button></td>';
       tbody.appendChild(tr);
     });
@@ -786,6 +787,7 @@
     document.getElementById('tail-time-start').value = d.timeStart || '';
     document.getElementById('tail-time-end').value = d.timeEnd || '';
     document.getElementById('tail-node').value = d.node || '';
+    document.getElementById('tail-weight').value = d.weight || 1;
     document.getElementById('tail-form-heading').textContent = 'Edit Tail Message';
     document.getElementById('btn-add-tail').textContent = 'Save Changes';
     document.getElementById('tail-edit-cancel').style.display = '';
@@ -804,6 +806,7 @@
     document.getElementById('tail-time-start').value = '';
     document.getElementById('tail-time-end').value = '';
     document.getElementById('tail-node').value = '';
+    document.getElementById('tail-weight').value = '';
     document.getElementById('tail-form-heading').textContent = 'Add a Tail Message';
     document.getElementById('btn-add-tail').textContent = 'Add to Rotation';
     document.getElementById('tail-edit-cancel').style.display = 'none';
@@ -1270,6 +1273,7 @@
     form.append('time_start', document.getElementById('tail-time-start').value);
     form.append('time_end', document.getElementById('tail-time-end').value);
     form.append('node', document.getElementById('tail-node').value.trim());
+    form.append('weight', document.getElementById('tail-weight').value.trim());
     if (isTts) {
       form.append('mode', 'tts');
       form.append('text', document.getElementById('tail-text').value);

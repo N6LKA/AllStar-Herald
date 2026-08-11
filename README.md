@@ -30,7 +30,7 @@ Back in medieval times, a herald was the person who rode into town to announce n
 
 ## Key Features
 
-- **Tail Messages** — reliable, unkey-triggered rotating announcements with SkywarnPlus WX priority and optional day/time-window gating
+- **Tail Messages** — reliable, unkey-triggered rotating announcements with SkywarnPlus WX priority, optional day/time-window gating, and per-entry weighting so some messages play more often than others
 - **Scheduled Announcements** — cron-style, clock-triggered, local or global playback
 - **Time & Weather Announcements** — built-in `saytime.pl`/`weather.sh` replacement with recordings or custom Piper-TTS templates; the same weather data can also feed Allmon3's panel and Supermon's own weather-conditions line, so every display agrees; optionally force-plays the current SkywarnPlus/-NG WX alert right after each announcement, independent of repeater activity
 - **Node ID Generator** — generate a station ID recording for AllStarLink's own ID feature

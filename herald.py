@@ -781,6 +781,44 @@ def rotation_entry_node(entry, node):
     entry_node = entry.get("Node") if isinstance(entry, dict) else None
     return str(entry_node) if entry_node else node
 
+MIN_ROTATION_WEIGHT = 1
+MAX_ROTATION_WEIGHT = 10
+
+def clamp_rotation_weight(weight):
+    try:
+        weight = int(weight)
+    except (TypeError, ValueError):
+        return MIN_ROTATION_WEIGHT
+    return max(MIN_ROTATION_WEIGHT, min(MAX_ROTATION_WEIGHT, weight))
+
+def rotation_entry_weight(entry):
+    if isinstance(entry, str):
+        return MIN_ROTATION_WEIGHT
+    return clamp_rotation_weight(entry.get("Weight", MIN_ROTATION_WEIGHT))
+
+def weighted_eligible_rotation(rotation, now):
+    """Eligible entries (day/time/Enabled gating, same as before), expanded
+    by Weight into an interleaved round-robin list - an entry with Weight=3
+    appears three times per full cycle, spread one-per-round across the
+    cycle (never three plays in a row just because its turn came up), so it
+    comes up 3x as often as a Weight=1 entry over time without bunching up.
+    The exact same rotation_index-modulo selection logic already used
+    everywhere rotation is played still applies unchanged - only the shape
+    of the list it indexes into has changed. Weight defaults to 1 for
+    legacy string entries and any dict entry that doesn't set it, so with
+    every entry at the default weight this returns exactly what the old
+    unweighted eligible-list-only logic did."""
+    eligible = [e for e in rotation if rotation_entry_eligible(e, now)]
+    if not eligible:
+        return []
+    weights = [rotation_entry_weight(e) for e in eligible]
+    out = []
+    for round_num in range(max(weights)):
+        for e, w in zip(eligible, weights):
+            if w > round_num:
+                out.append(e)
+    return out
+
 def log_playback(state, entry_type, name, filepath, node, play_mode="local"):
     history = state.setdefault("playback_history", [])
     history.append({
@@ -2833,7 +2871,7 @@ def normalize_rotation(rotation):
         if isinstance(e, str):
             entry = {"File": e, "Text": None, "Voice": None, "Speed": DEFAULT_TTS_SPEED,
                       "Days": "daily", "TimeStart": None, "TimeEnd": None, "Node": None,
-                      "Enabled": True}
+                      "Enabled": True, "Weight": MIN_ROTATION_WEIGHT}
         else:
             entry = {
                 "File": e.get("File", ""),
@@ -2845,6 +2883,7 @@ def normalize_rotation(rotation):
                 "TimeEnd": e.get("TimeEnd"),
                 "Node": e.get("Node"),
                 "Enabled": e.get("Enabled", True),
+                "Weight": rotation_entry_weight(e),
             }
         entry["FileMissing"] = not (entry["File"] and os.path.exists(entry["File"]))
         out.append(entry)
@@ -2938,6 +2977,8 @@ def cmd_add_rotation(config, args):
     entry = {"File": filepath, "Text": args.text, "Voice": args.voice}
     if args.speed is not None:
         entry["Speed"] = clamp_tts_speed(args.speed)
+    if args.weight is not None:
+        entry["Weight"] = clamp_rotation_weight(args.weight)
     if args.days and args.days != "daily":
         entry["Days"] = [d.strip().lower() for d in args.days.split(",")]
     if args.time_start:
@@ -2979,6 +3020,8 @@ def cmd_edit_rotation(config, args):
         entry["Voice"] = args.voice
     if args.speed is not None:
         entry["Speed"] = clamp_tts_speed(args.speed)
+    if args.weight is not None:
+        entry["Weight"] = clamp_rotation_weight(args.weight)
     if args.days is not None:
         if args.days == "daily" or args.days == "":
             entry.pop("Days", None)
@@ -3520,6 +3563,7 @@ def build_arg_parser():
     p_add_rot.add_argument("--text", default=None)
     p_add_rot.add_argument("--voice", default=None)
     p_add_rot.add_argument("--speed", type=float, default=None)
+    p_add_rot.add_argument("--weight", type=int, default=None)
     p_add_rot.add_argument("--days", default="daily")
     p_add_rot.add_argument("--time-start", dest="time_start", default=None)
     p_add_rot.add_argument("--time-end", dest="time_end", default=None)
@@ -3531,6 +3575,7 @@ def build_arg_parser():
     p_edit_rot.add_argument("--text", default=None)
     p_edit_rot.add_argument("--voice", default=None)
     p_edit_rot.add_argument("--speed", type=float, default=None)
+    p_edit_rot.add_argument("--weight", type=int, default=None)
     p_edit_rot.add_argument("--file", default=None)
     p_edit_rot.add_argument("--days", default=None)
     p_edit_rot.add_argument("--time-start", dest="time_start", default=None)
@@ -4119,7 +4164,7 @@ def main():
                         save_state(state)
 
                     elif rotation and state.get("swp_next_is_rotation"):
-                        eligible = [e for e in rotation if rotation_entry_eligible(e, now_dt)]
+                        eligible = weighted_eligible_rotation(rotation, now_dt)
                         if eligible:
                             idx      = state["rotation_index"] % len(eligible)
                             entry    = eligible[idx]
@@ -4155,7 +4200,7 @@ def main():
                         save_state(state)
 
                 elif rotation:
-                    eligible = [e for e in rotation if rotation_entry_eligible(e, now_dt)]
+                    eligible = weighted_eligible_rotation(rotation, now_dt)
                     if eligible:
                         idx      = state["rotation_index"] % len(eligible)
                         entry    = eligible[idx]
