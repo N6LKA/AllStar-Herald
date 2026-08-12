@@ -1407,4 +1407,59 @@
   });
   loadAuthSettings();
   _cdPoller = setInterval(_pollCountdown, 10000);
+
+  // Help icons: shown/hidden/positioned entirely in JS (hover, focus, and
+  // tap all funnel through the same show/hide pair) so every trigger gets
+  // the same viewport-clamped placement - a tooltip anchored purely in CSS
+  // (position:absolute + left:0) could run off the right edge of the
+  // screen on fields near the edge of a wide row, widening the page's own
+  // scrollbar in the process.
+  function closeAllHelpTooltips() {
+    document.querySelectorAll('#herald-ui .help-tooltip.show').forEach(t => {
+      t.classList.remove('show');
+      t.style.visibility = '';
+    });
+  }
+  function showHelpTooltip(icon) {
+    const tooltip = icon.querySelector('.help-tooltip');
+    if (!tooltip) return;
+    closeAllHelpTooltips();
+    // Render invisibly first so we can measure its real size, then place
+    // it on-screen before revealing - avoids a flash at the wrong spot.
+    tooltip.style.visibility = 'hidden';
+    tooltip.classList.add('show');
+    const margin = 8;
+    const iconRect = icon.getBoundingClientRect();
+    const tipRect = tooltip.getBoundingClientRect();
+    let left = Math.min(iconRect.left, window.innerWidth - tipRect.width - margin);
+    left = Math.max(margin, left);
+    let top = iconRect.top - tipRect.height - 6;
+    if (top < margin) top = iconRect.bottom + 6;
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
+    tooltip.style.visibility = 'visible';
+  }
+  document.querySelectorAll('#herald-ui .help-icon').forEach(icon => {
+    icon.addEventListener('mouseenter', () => showHelpTooltip(icon));
+    icon.addEventListener('mouseleave', closeAllHelpTooltips);
+    icon.addEventListener('focus', () => showHelpTooltip(icon));
+    icon.addEventListener('blur', closeAllHelpTooltips);
+    icon.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const tooltip = icon.querySelector('.help-tooltip');
+      if (tooltip.classList.contains('show')) closeAllHelpTooltips();
+      else showHelpTooltip(icon);
+    });
+    icon.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        const tooltip = icon.querySelector('.help-tooltip');
+        if (tooltip.classList.contains('show')) closeAllHelpTooltips();
+        else showHelpTooltip(icon);
+      }
+    });
+  });
+  document.addEventListener('click', closeAllHelpTooltips);
+  document.addEventListener('scroll', closeAllHelpTooltips, true);
+  window.addEventListener('resize', closeAllHelpTooltips);
 })();
