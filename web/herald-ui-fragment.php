@@ -241,9 +241,14 @@
     padding: 10px 14px; margin-bottom: 14px; font-size: 0.92em; color: #7a5c00;
   }
   /* Small "?" badge next to a label, for fields whose behavior isn't obvious
-     from the label text alone. Hover/focus shows the tooltip (desktop); the
-     .show class (toggled by herald-ui.js on click) covers touch devices,
-     where :hover doesn't fire reliably. */
+     from the label text alone. herald-ui.js shows/hides + positions the
+     tooltip on hover, focus, and tap alike (unified in JS rather than split
+     across CSS :hover and a JS .show class, so every trigger gets the same
+     viewport-clamped placement below) - position:fixed + JS-computed
+     top/left keeps it fully on-screen regardless of where the icon sits or
+     how big the viewport is, and keeps it out of the page's own scrollable
+     area (an absolutely-positioned tooltip that overflowed the viewport
+     was widening the whole page's scroll region). */
   #herald-ui .help-icon {
     display: inline-flex;
     align-items: center;
@@ -257,7 +262,6 @@
     font-weight: bold;
     margin-left: 6px;
     cursor: pointer;
-    position: relative;
     vertical-align: middle;
     user-select: none;
   }
@@ -269,27 +273,23 @@
   }
   #herald-ui .help-tooltip {
     display: none;
-    position: absolute;
-    bottom: calc(100% + 6px);
-    left: 0;
+    position: fixed;
     background: #333;
     color: #fff;
-    font-size: 0.85em;
+    font-size: 1em;
     font-weight: normal;
-    line-height: 1.4;
-    padding: 8px 10px;
+    line-height: 1.5;
+    padding: 10px 12px;
     border-radius: 6px;
     width: max-content;
-    max-width: 260px;
+    max-width: 300px;
     white-space: normal;
     box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    z-index: 20;
+    z-index: 1000;
     text-align: left;
     cursor: auto;
   }
-  #herald-ui .help-icon:hover .help-tooltip,
-  #herald-ui .help-icon:focus .help-tooltip,
-  #herald-ui .help-icon.show .help-tooltip {
+  #herald-ui .help-tooltip.show {
     display: block;
   }
 </style>
