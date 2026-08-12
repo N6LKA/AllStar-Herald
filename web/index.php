@@ -29,9 +29,9 @@ if (!herald_check_session()) {
     border-bottom: 1px solid #ccc;
     padding: 10px 20px;
   }
-  .herald-topbar-brand { display: flex; align-items: center; gap: 12px; }
-  .herald-topbar-brand img.herald-icon { height: 40px; display: block; }
-  .herald-topbar-brand img.herald-banner { height: 40px; display: block; }
+  .herald-topbar-brand { display: flex; align-items: center; gap: 14px; }
+  .herald-topbar-brand img.herald-icon { height: 64px; display: block; }
+  .herald-topbar-brand img.herald-banner { height: 64px; display: block; }
   .herald-topbar a {
     color: #2f5d65;
     text-decoration: none;
