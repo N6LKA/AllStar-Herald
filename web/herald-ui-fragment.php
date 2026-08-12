@@ -525,7 +525,7 @@
 
         <div id="set-swp-fields" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; margin-top:8px;">
           <div style="flex:1 1 200px; min-width:180px;">
-            <label>WX Tail File Path<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">Path to the WX tail file SkywarnPlus writes — a large file (over the Silence Threshold below) when an alert is active, small/silent otherwise. Default matches SkywarnPlus-NG's own path; classic SkywarnPlus fork users should point this at /tmp/SkywarnPlus/wx-tail.wav instead.</span></span></label>
+            <label>WX Tail File Path<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">Path to the WX tail file SkywarnPlus writes — a large file (over the Silence Threshold setting) when an alert is active, small/silent otherwise. Default matches SkywarnPlus-NG's own path; classic SkywarnPlus fork users should point this at /tmp/SkywarnPlus/wx-tail.wav instead.</span></span></label>
             <input type="text" id="set-swp-wxfile" style="width: 100%; box-sizing:border-box;">
           </div>
           <div style="flex:0 0 auto;">
@@ -550,7 +550,7 @@
             <input type="text" id="set-swp-ng-apibase" style="width: 100%; box-sizing:border-box;">
           </div>
           <div style="flex:0 0 auto;">
-            <label>Poll Interval (seconds)<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">How often Herald polls the SkywarnPlus-NG API above for alert changes. Default: 30.</span></span></label>
+            <label>Poll Interval (seconds)<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">How often Herald polls the SkywarnPlus-NG API Base for alert changes. Default: 30.</span></span></label>
             <input type="text" id="set-swp-ng-pollinterval" style="width: 90px; box-sizing:border-box;">
           </div>
         </div>
@@ -876,7 +876,7 @@
           </div>
         </div>
         <div>
-          <label>Tempest Station ID (optional)<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">Leave blank to auto-detect from your token above (cached after the first lookup).</span></span></label>
+          <label>Tempest Station ID (optional)<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">Leave blank to auto-detect from your Personal Access Token (cached after the first lookup).</span></span></label>
           <input type="text" id="tw-tempest-station" style="width:140px;" placeholder="auto-detect if blank">
         </div>
       </div>
