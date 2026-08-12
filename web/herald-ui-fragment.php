@@ -240,6 +240,58 @@
     background: #fff8e1; border: 1px solid #f0d78c; border-radius: 6px;
     padding: 10px 14px; margin-bottom: 14px; font-size: 0.92em; color: #7a5c00;
   }
+  /* Small "?" badge next to a label, for fields whose behavior isn't obvious
+     from the label text alone. Hover/focus shows the tooltip (desktop); the
+     .show class (toggled by herald-ui.js on click) covers touch devices,
+     where :hover doesn't fire reliably. */
+  #herald-ui .help-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #9aa5b1;
+    color: #fff;
+    font-size: 11px;
+    font-weight: bold;
+    margin-left: 6px;
+    cursor: pointer;
+    position: relative;
+    vertical-align: middle;
+    user-select: none;
+  }
+  #herald-ui .help-icon:hover,
+  #herald-ui .help-icon:focus,
+  #herald-ui .help-icon.show {
+    background: #576574;
+    outline: none;
+  }
+  #herald-ui .help-tooltip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    background: #333;
+    color: #fff;
+    font-size: 0.85em;
+    font-weight: normal;
+    line-height: 1.4;
+    padding: 8px 10px;
+    border-radius: 6px;
+    width: max-content;
+    max-width: 260px;
+    white-space: normal;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    z-index: 20;
+    text-align: left;
+    cursor: auto;
+  }
+  #herald-ui .help-icon:hover .help-tooltip,
+  #herald-ui .help-icon:focus .help-tooltip,
+  #herald-ui .help-icon.show .help-tooltip {
+    display: block;
+  }
 </style>
 
 <div class="status-bar" id="herald-status-bar">
@@ -375,7 +427,7 @@
 
       <div class="field-row" style="margin-top: 8px;">
         <div>
-          <label>Days (optional — leave Daily for always eligible)</label>
+          <label>Days (optional — leave Daily for always eligible)<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">Restricts this rotation entry to only the checked days. Leave Daily checked (default) for always eligible. Combine with Time Window to also restrict by time of day.</span></span></label>
           <div class="days-picker" id="tail-days">
             <label><input type="checkbox" value="daily" id="tail-day-daily" checked> Daily</label>
             <label><input type="checkbox" value="sunday"> Sun</label>
@@ -388,13 +440,13 @@
           </div>
         </div>
         <div>
-          <label>Time Window (optional)</label>
+          <label>Time Window (optional)<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">Restricts this entry to only play between these times. Leave both blank for always eligible. Combine with Days to also restrict by day.</span></span></label>
           <input type="time" id="tail-time-start" style="width: 110px;">
           <span class="muted">to</span>
           <input type="time" id="tail-time-end" style="width: 110px;">
         </div>
         <div>
-          <label>Node Override (optional)</label>
+          <label>Node Override (optional)<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">Target a specific node number instead of this daemon's configured node — for multinodes= setups where one AMI connection serves several node numbers. Leave blank to use the default node.</span></span></label>
           <input type="text" id="tail-node" style="width: 120px;" placeholder="e.g. 501261">
         </div>
         <div>
@@ -473,11 +525,11 @@
 
         <div id="set-swp-fields" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; margin-top:8px;">
           <div style="flex:1 1 200px; min-width:180px;">
-            <label>WX Tail File Path</label>
+            <label>WX Tail File Path<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">Path to the WX tail file SkywarnPlus writes — a large file (over the Silence Threshold below) when an alert is active, small/silent otherwise. Default matches SkywarnPlus-NG's own path; classic SkywarnPlus fork users should point this at /tmp/SkywarnPlus/wx-tail.wav instead.</span></span></label>
             <input type="text" id="set-swp-wxfile" style="width: 100%; box-sizing:border-box;">
           </div>
           <div style="flex:0 0 auto;">
-            <label>Silence Threshold (bytes)</label>
+            <label>Silence Threshold (bytes)<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">File size threshold used to tell an active alert file apart from the silent placeholder. Default: 5000.</span></span></label>
             <input type="text" id="set-swp-threshold" style="width: 90px; box-sizing:border-box;">
           </div>
         </div>
@@ -494,11 +546,11 @@
         </div>
         <div id="set-swp-ng-fields" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; margin-top:8px;">
           <div style="flex:1 1 200px; min-width:180px;">
-            <label>SkywarnPlus-NG API Base</label>
+            <label>SkywarnPlus-NG API Base<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">Address of SkywarnPlus-NG's own dashboard API (default http://127.0.0.1:8100). Herald polls this to detect real alert changes, since NG rewrites the WX Tail File on every poll cycle even when nothing changed — its file's timestamp alone can't be trusted.</span></span></label>
             <input type="text" id="set-swp-ng-apibase" style="width: 100%; box-sizing:border-box;">
           </div>
           <div style="flex:0 0 auto;">
-            <label>Poll Interval (seconds)</label>
+            <label>Poll Interval (seconds)<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">How often Herald polls the SkywarnPlus-NG API above for alert changes. Default: 30.</span></span></label>
             <input type="text" id="set-swp-ng-pollinterval" style="width: 90px; box-sizing:border-box;">
           </div>
         </div>
@@ -575,7 +627,7 @@
           <p class="muted" style="margin-top:5px; margin-bottom:0; font-size:0.85em;"><strong>Global</strong> sends audio to every node currently linked to yours. Use with caution.</p>
         </div>
         <div>
-          <label>Node Override (optional)</label>
+          <label>Node Override (optional)<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">Target a specific node number instead of this daemon's configured node — for multinodes= setups where one AMI connection serves several node numbers. Leave blank to use the default node.</span></span></label>
           <input type="text" id="sched-node" style="width: 120px;" placeholder="e.g. 501261">
         </div>
       </div>
@@ -759,7 +811,7 @@
     <h3>Time</h3>
     <div class="field-row">
       <div>
-        <label>Time Format</label>
+        <label>Time Format<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">12-hour adds AM/PM (e.g. "Three PM"); 24-hour says e.g. "sixteen hundred hours". Also controls how the {time} tag is spoken in Custom Templates mode.</span></span></label>
         <select id="tw-time-format" style="width:220px;">
           <option value="12">12-hour (with AM/PM)</option>
           <option value="24">24-hour</option>
@@ -792,7 +844,7 @@
 
     <div class="field-row">
       <div>
-        <label>Weather Provider</label>
+        <label>Weather Provider<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">Auto uses NOAA METAR for ICAO airport codes and Open-Meteo for everything else (each falls back to the other). Tempest and Wunderground use your own weather station instead of the Location lookup.</span></span></label>
         <select id="tw-provider" style="width:440px;">
           <option value="auto">Auto (METAR for airport codes, Open-Meteo otherwise)</option>
           <option value="metar">NOAA METAR (ICAO airport codes only)</option>
@@ -802,7 +854,7 @@
         </select>
       </div>
       <div id="tw-location-field">
-        <label>Location (ZIP/postal code or ICAO airport code)</label>
+        <label>Location (ZIP/postal code or ICAO airport code)<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">ZIP/postal code or ICAO airport code (e.g. 92320 or KONT). Ignored for the Tempest and Wunderground providers, which use your station's own location instead.</span></span></label>
         <input type="text" id="tw-location" style="width:180px;" placeholder="e.g. 92320 or KONT">
       </div>
       <div>
@@ -817,14 +869,14 @@
     <div id="tw-tempest-fields" style="display:none; margin-top:10px;">
       <div class="field-row">
         <div>
-          <label>Tempest Personal Access Token</label>
+          <label>Tempest Personal Access Token<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">Your WeatherFlow personal access token — generate one at tempest.earth/account.</span></span></label>
           <div class="secret-wrap" style="width:380px;">
             <input type="password" autocomplete="off" id="tw-tempest-token" style="width:100%; box-sizing:border-box;" placeholder="tempest.earth/account">
             <button type="button" class="btn-eye" data-target="tw-tempest-token" aria-label="Show"></button>
           </div>
         </div>
         <div>
-          <label>Tempest Station ID (optional)</label>
+          <label>Tempest Station ID (optional)<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">Leave blank to auto-detect from your token above (cached after the first lookup).</span></span></label>
           <input type="text" id="tw-tempest-station" style="width:140px;" placeholder="auto-detect if blank">
         </div>
       </div>
@@ -833,14 +885,14 @@
     <div id="tw-wunderground-fields" style="display:none; margin-top:10px;">
       <div class="field-row">
         <div>
-          <label>Wunderground API Key</label>
+          <label>Wunderground API Key<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">Your Weather Underground API key — generate one at weatherunderground.com/member/api-keys.</span></span></label>
           <div class="secret-wrap" style="width:380px;">
             <input type="password" autocomplete="off" id="tw-wunderground-apikey" style="width:100%; box-sizing:border-box;" placeholder="weatherunderground.com/member/api-keys">
             <button type="button" class="btn-eye" data-target="tw-wunderground-apikey" aria-label="Show"></button>
           </div>
         </div>
         <div>
-          <label>Wunderground Station ID</label>
+          <label>Wunderground Station ID<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">Your Personal Weather Station's ID, e.g. KCASTATION1.</span></span></label>
           <input type="text" id="tw-wunderground-station" style="width:160px;" placeholder="e.g. KCASTATION1">
         </div>
       </div>
@@ -885,11 +937,11 @@
       <span class="toggle-label">Write a weather snapshot file for other local programs</span>
       <div id="tw-snapshot-fields" style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
         <div>
-          <label>Snapshot File Path</label>
+          <label>Snapshot File Path<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">Where Herald writes the current-conditions JSON snapshot. Keep it off /tmp and /var/tmp — Apache's PrivateTmp setting makes a file there invisible to anything Apache runs (e.g. Supermon's weather-line wrapper).</span></span></label>
           <input type="text" id="tw-snapshot-path" style="width:430px; box-sizing:border-box;">
         </div>
         <div>
-          <label>Label (optional)</label>
+          <label>Label (optional)<span class="help-icon" tabindex="0" role="button" aria-label="Help">?<span class="help-tooltip">Optional friendly name shown alongside this snapshot on the Allmon3 panel, e.g. "Home Station".</span></span></label>
           <input type="text" id="tw-snapshot-label" style="width:430px; box-sizing:border-box;" placeholder="e.g. Home Station">
         </div>
       </div>

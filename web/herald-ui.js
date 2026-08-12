@@ -1407,4 +1407,26 @@
   });
   loadAuthSettings();
   _cdPoller = setInterval(_pollCountdown, 10000);
+
+  // Help icons: :hover/:focus already show the tooltip via CSS for desktop.
+  // This adds tap-to-toggle for touch devices, where :hover doesn't fire
+  // reliably, plus click-away-to-close.
+  document.addEventListener('click', (e) => {
+    const icon = e.target.closest('.help-icon');
+    document.querySelectorAll('#herald-ui .help-icon.show').forEach(el => {
+      if (el !== icon) el.classList.remove('show');
+    });
+    if (icon) {
+      icon.classList.toggle('show');
+      e.stopPropagation();
+    }
+  });
+  document.querySelectorAll('#herald-ui .help-icon').forEach(icon => {
+    icon.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        icon.classList.toggle('show');
+      }
+    });
+  });
 })();
