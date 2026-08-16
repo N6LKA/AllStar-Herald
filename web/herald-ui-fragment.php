@@ -404,7 +404,7 @@
       <li><strong>Takes priority over Scheduled Announcements</strong> — if both are due at the same moment, Time & Weather always plays first; the Scheduled entry just plays right after instead of being skipped.</li>
       <li><strong>Waits for the node to unkey</strong>, same as Scheduled Announcements.</li>
       <li>Weather can come from NOAA METAR, Open-Meteo, your own WeatherFlow Tempest station, or any Personal Weather Station uploading to Weather Underground (including a Tempest station also configured to feed WU) — Tempest, Open-Meteo, and METAR all include wind speed/direction/gust in addition to temperature, feels-like, humidity, and condition.</li>
-      <li>Can also be triggered <strong>on demand via DTMF</strong>, independent of the schedule above (which doesn't have to be hourly - any cron pattern works). To enable this, add a function to your node's <code>rpt.conf</code> that runs <code>/usr/local/bin/herald play-timeweather</code>.</li>
+      <li>Can also be triggered <strong>on demand via DTMF</strong>, independent of the schedule above (which doesn't have to be hourly - any cron pattern works). See the Time &amp; Weather tab for the exact <code>rpt.conf</code> line, or the <a href="https://github.com/N6LKA/AllStar-Herald/wiki/Time-and-Weather-Announcements#dtmf-setup" target="_blank">wiki</a> for the full walkthrough.</li>
     </ul>
   </div>
 </div>
@@ -696,7 +696,10 @@
       The sound files this feature needs (digits, greetings, weather condition words) don't appear to be installed. Re-run <code>install.sh</code> to install them.
     </div>
     <div class="banner-info">
-      To play this announcement on demand via DTMF (independent of the schedule below), add a function to your node's <code>rpt.conf</code> that runs <code>/usr/local/bin/herald play-timeweather</code>.
+      <strong>To play this announcement on demand via DTMF</strong> (independent of the schedule below), add a function to your node's <code>rpt.conf</code>:
+      <br><code>[functions]</code>
+      <br><code>71 = cmd,/usr/local/bin/herald play-timeweather</code>
+      <br><code>71</code> is just an example - use any function code not already taken in your <code>[functions]</code> stanza (no leading <code>*</code> - that's your radio-side funcchar, not part of the config line). Then reload: <code>sudo asterisk -rx "module reload app_rpt.so"</code>. Full walkthrough on the <a href="https://github.com/N6LKA/AllStar-Herald/wiki/Time-and-Weather-Announcements#dtmf-setup" target="_blank">wiki</a>.
     </div>
 
     <div class="toggle-row">
