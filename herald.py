@@ -611,7 +611,8 @@ def ensure_keyup_leadin_file(lead_in_ms):
     seconds = lead_in_ms / 1000.0
     try:
         subprocess.run(
-            ["sox", "-n", "-r", "8000", "-c", "1", KEYUP_LEADIN_FILE, "trim", "0.0", str(seconds)],
+            ["sox", "-n", "-r", "8000", "-c", "1", "-b", "16", "-e", "signed-integer",
+             KEYUP_LEADIN_FILE, "trim", "0.0", str(seconds)],
             capture_output=True, timeout=10, check=True,
         )
         _keyup_leadin_cached_ms = lead_in_ms
